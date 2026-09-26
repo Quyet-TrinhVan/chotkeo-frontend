@@ -1,0 +1,6 @@
+{
+  "name": "Chốt Kèo - Hôm Nay Đi Đâu?",
+  "description": "Ứng dụng khám phá địa điểm, gợi ý thông minh, mở kèo ngẫu nhiên và phòng bình chọn nhóm tại Hà Nội.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
