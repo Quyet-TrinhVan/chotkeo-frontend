@@ -1,5 +1,7 @@
 export * from './client';
 export * from './authApi';
+export * from './profileApi';
+export * from './uploadApi';
 export * from './placeApi';
 export * from './recommendationApi';
 export * from './randomDrawApi';

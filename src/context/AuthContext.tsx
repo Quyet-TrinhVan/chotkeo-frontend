@@ -44,15 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initAuth() {
       try {
-        const hasLoggedOut = await secureStorage.getItemAsync('userLoggedOut');
-        if (hasLoggedOut === 'true') {
-          if (isMounted) {
-            setUser(null);
-            setIsAuthenticated(false);
-          }
-          return;
-        }
-
         const token = await secureStorage.getItemAsync('accessToken');
         if (token && !token.startsWith('mock-')) {
           try {

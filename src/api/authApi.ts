@@ -185,10 +185,33 @@ export const authApi = {
     if (USE_MOCKS) {
       await new Promise((r) => setTimeout(r, 300));
       const current = await authApi.getMe();
+      let newAvatar = current.avatar;
+      if (patch.avatar !== undefined) {
+        if (patch.avatar === null) {
+          newAvatar = null;
+        } else {
+          newAvatar = {
+            id: patch.avatar,
+            status: 'READY',
+            contentType: 'image/jpeg',
+            sizeBytes: 150000,
+            sha256: 'mock-sha256',
+            renditions: [
+              {
+                kind: 'ORIGINAL',
+                url: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=80&v=${Date.now()}`,
+                expiresAt: new Date(Date.now() + 86400 * 30 * 1000).toISOString(),
+              },
+            ],
+            moderationStatus: 'APPROVED',
+          };
+        }
+      }
       const updated: UserProfile = {
         ...current,
         displayName: patch.displayName ?? current.displayName,
-        version: current.version + 1,
+        avatar: newAvatar,
+        version: (current.version || 1) + 1,
         updatedAt: new Date().toISOString(),
       };
       await secureStorage.setItemAsync('currentUser', JSON.stringify(updated));

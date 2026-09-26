@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,14 @@ import {
   ShieldCheck,
   Check,
   X,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react-native';
+import {
+  ProfileAvatar,
+  AvatarPickerSheet,
+  useAvatarUpload,
+} from '../../../src/features/profile';
 
 export default function ProfileScreen() {
   const { user, logout, updateDisplayName } = useAuth();
@@ -32,7 +39,37 @@ export default function ProfileScreen() {
 
   const [editNameModal, setEditNameModal] = useState(false);
   const [newName, setNewName] = useState(user?.displayName || '');
-  const [avatarNotice, setAvatarNotice] = useState(false);
+  const [pickerSheetVisible, setPickerSheetVisible] = useState(false);
+
+  const {
+    isUploading,
+    uploadMessage,
+    previewUri,
+    error: avatarError,
+    toastMessage: avatarToast,
+    clearError: clearAvatarError,
+    clearToast: clearAvatarToast,
+    pickImageFromLibrary,
+    takePhotoWithCamera,
+  } = useAvatarUpload();
+
+  useEffect(() => {
+    if (avatarToast) {
+      const timer = setTimeout(() => {
+        clearAvatarToast();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [avatarToast, clearAvatarToast]);
+
+  useEffect(() => {
+    if (avatarError) {
+      const timer = setTimeout(() => {
+        clearAvatarError();
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [avatarError, clearAvatarError]);
 
   const handleSaveName = async () => {
     if (newName.trim()) {
@@ -58,16 +95,15 @@ export default function ProfileScreen() {
     >
       {/* Profile Header Card */}
       <View style={styles.profileCard}>
-        <View style={styles.avatarContainer}>
-          <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-          <Pressable
-            onPress={() => setAvatarNotice(true)}
-            style={styles.changeAvatarBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Đổi ảnh đại diện"
-          >
-            <Camera size={16} color={colors.textInverse} />
-          </Pressable>
+        <View style={styles.avatarWrap}>
+          <ProfileAvatar
+            avatarUrl={user?.avatar?.renditions?.[0]?.url}
+            previewUri={previewUri}
+            isUploading={isUploading}
+            uploadMessage={uploadMessage}
+            onPressCamera={() => setPickerSheetVisible(true)}
+            size={90}
+          />
         </View>
 
         <Text style={styles.displayName}>{user?.displayName || 'Người dùng Chốt Kèo'}</Text>
@@ -77,6 +113,17 @@ export default function ProfileScreen() {
           <ShieldCheck size={14} color={colors.success} style={{ marginRight: 4 }} />
           <Text style={styles.stateBadgeText}>Tài khoản đã xác thực</Text>
         </View>
+
+        {/* Inline Avatar Error Banner */}
+        {avatarError && (
+          <View style={styles.errorBanner}>
+            <AlertCircle size={15} color={colors.danger} style={{ marginRight: 6 }} />
+            <Text style={styles.errorBannerText}>{avatarError}</Text>
+            <Pressable onPress={clearAvatarError} hitSlop={8} style={{ marginLeft: 6 }}>
+              <X size={14} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+        )}
 
         {/* Profile Action Buttons */}
         <View style={styles.profileActionsRow}>
@@ -92,7 +139,8 @@ export default function ProfileScreen() {
           <SecondaryButton
             title="Đổi ảnh đại diện"
             icon={<Camera size={15} color={colors.textPrimary} />}
-            onPress={() => setAvatarNotice(true)}
+            onPress={() => setPickerSheetVisible(true)}
+            disabled={isUploading}
             style={styles.actionBtnHalf}
           />
         </View>
@@ -206,32 +254,22 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Avatar Presigned Upload Notice Modal */}
-      <Modal visible={avatarNotice} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Tải ảnh đại diện</Text>
-              <Pressable
-                onPress={() => setAvatarNotice(false)}
-                style={styles.modalCloseBtn}
-              >
-                <X size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
+      {/* Avatar Picker Bottom Sheet */}
+      <AvatarPickerSheet
+        visible={pickerSheetVisible}
+        onClose={() => setPickerSheetVisible(false)}
+        onSelectLibrary={pickImageFromLibrary}
+        onSelectCamera={takePhotoWithCamera}
+        disabled={isUploading}
+      />
 
-            <Text style={styles.modalDesc}>
-              Theo chuẩn API-MED-001 (Section 15), avatar được tải lên bằng presigned PUT URL trực tiếp tới MinIO storage và gán vào hồ sơ.
-            </Text>
-
-            <PrimaryButton
-              title="Đã hiểu"
-              onPress={() => setAvatarNotice(false)}
-              style={{ marginTop: spacing.md }}
-            />
-          </View>
+      {/* Success Toast */}
+      {avatarToast && (
+        <View style={styles.toastWrap}>
+          <CheckCircle2 size={16} color={colors.success} style={{ marginRight: 8 }} />
+          <Text style={styles.toastText}>{avatarToast}</Text>
         </View>
-      </Modal>
+      )}
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -255,28 +293,48 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: spacing.lg,
   },
-  avatarContainer: {
-    position: 'relative',
+  avatarWrap: {
     marginBottom: spacing.md,
   },
-  avatarImage: {
-    width: 90,
-    height: 90,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceMuted,
-  },
-  changeAvatarBtn: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+  errorBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
+    backgroundColor: colors.closedLight,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: spacing.md,
+    width: '100%',
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.danger,
+  },
+  toastWrap: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    backgroundColor: '#1E1B18',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 9999,
+  },
+  toastText: {
+    ...typography.captionMedium,
+    color: colors.textInverse,
+    fontSize: 13,
   },
   displayName: {
     ...typography.pageTitle,
