@@ -8,14 +8,17 @@ import {
   Image,
   Animated,
   Easing,
+  ActivityIndicator,
 } from 'react-native';
+import { useMutation } from '@tanstack/react-query';
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { AppHeader } from '../../src/components/AppHeader';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { StatusBadge } from '../../src/components/StatusBadge';
 import { randomDrawApi } from '../../src/api/randomDrawApi';
-import { RandomDraw, PlaceSummary } from '../../src/types/api';
+import { ApiError } from '../../src/api/client';
+import { RandomDraw, PlaceSummary, RandomDrawCreate } from '../../src/types/api';
 import { MOCK_PLACES } from '../../src/api/mockData';
 import { useRouter } from '../../src/navigation/router';
 import {
@@ -26,13 +29,18 @@ import {
   Sparkles,
   ArrowRight,
   Flame,
+  AlertCircle,
+  X,
 } from 'lucide-react-native';
+
+export type DrawUiState = 'IDLE' | 'LOADING' | 'EMPTY' | 'SUCCESS';
 
 export default function RandomDrawScreen() {
   const router = useRouter();
   const { reduceMotion } = router;
 
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [uiState, setUiState] = useState<DrawUiState>('IDLE');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentDraw, setCurrentDraw] = useState<RandomDraw | null>(null);
   const [showResultCard, setShowResultCard] = useState(false);
   const [reelPlaces, setReelPlaces] = useState<PlaceSummary[]>([]);
@@ -41,58 +49,136 @@ export default function RandomDrawScreen() {
   const scrollX = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // TanStack Query Mutation
+  const randomDrawMutation = useMutation({
+    mutationFn: (payload?: RandomDrawCreate) => randomDrawApi.createDraw(payload),
+  });
+
+  const handleRandomDrawError = (error: unknown) => {
+    // 1. Check if error is ApiError or contains ProblemDetail
+    if (error instanceof ApiError) {
+      switch (error.code) {
+        case 'CONSTRAINTS_TOO_STRICT':
+          setUiState('EMPTY');
+          setErrorMessage(null);
+          return;
+        case 'RATE_LIMIT_EXCEEDED':
+          setUiState('IDLE');
+          setErrorMessage('Bạn thao tác quá nhanh. Vui lòng thử lại sau.');
+          return;
+        default:
+          if (error.status === 429) {
+            setUiState('IDLE');
+            setErrorMessage('Bạn thao tác quá nhanh. Vui lòng thử lại sau.');
+            return;
+          }
+          if (error.status === 401) {
+            setUiState('IDLE');
+            setErrorMessage('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+            return;
+          }
+          if (error.status >= 500) {
+            setUiState('IDLE');
+            setErrorMessage('Không thể mở kèo lúc này. Vui lòng thử lại.');
+            return;
+          }
+          if (error.status === 422) {
+            setUiState('EMPTY');
+            setErrorMessage(null);
+            return;
+          }
+          setUiState('IDLE');
+          setErrorMessage(error.problem?.detail || 'Không thể mở kèo lúc này. Vui lòng thử lại.');
+          return;
+      }
+    }
+
+    // 2. Generic object code check
+    const errCode = (error as any)?.code || (error as any)?.problem?.code;
+    const errStatus = (error as any)?.status || (error as any)?.problem?.status;
+
+    if (errCode === 'CONSTRAINTS_TOO_STRICT' || errStatus === 422) {
+      setUiState('EMPTY');
+      setErrorMessage(null);
+      return;
+    }
+
+    if (errStatus === 429 || errCode === 'RATE_LIMIT_EXCEEDED') {
+      setUiState('IDLE');
+      setErrorMessage('Bạn thao tác quá nhanh. Vui lòng thử lại sau.');
+      return;
+    }
+
+    if (errStatus >= 500) {
+      setUiState('IDLE');
+      setErrorMessage('Không thể mở kèo lúc này. Vui lòng thử lại.');
+      return;
+    }
+
+    // 3. Network or other errors
+    setUiState('IDLE');
+    setErrorMessage('Không thể kết nối. Kiểm tra mạng và thử lại.');
+  };
+
   const handleStartDraw = async () => {
-    setIsDrawing(true);
+    setErrorMessage(null);
+    setUiState('LOADING');
     setShowResultCard(false);
     scrollX.setValue(0);
     fadeAnim.setValue(0);
 
-    // Call server endpoint. Server commits winner BEFORE animation!
-    const draw = await randomDrawApi.createDraw();
-    setCurrentDraw(draw);
+    try {
+      // Call server endpoint with try/catch. Server commits winner BEFORE animation!
+      const draw = await randomDrawMutation.mutateAsync();
+      setCurrentDraw(draw);
 
-    // Prepare reel candidate items
-    const places = draw.animationSpec.itemIds.map((id) => {
-      return MOCK_PLACES.find((p) => p.id === id) || draw.result;
-    });
-    setReelPlaces(places);
-
-    const ITEM_WIDTH = 130;
-    const targetOffset = draw.animationSpec.resultIndex * ITEM_WIDTH - 100;
-
-    if (reduceMotion) {
-      // Short reveal mode for accessibility
-      setTimeout(() => {
-        setIsDrawing(false);
-        setShowResultCard(true);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }).start();
-      }, draw.reduceMotionFallback.durationMs);
-    } else {
-      // Reel spring deceleration animation
-      Animated.timing(scrollX, {
-        toValue: targetOffset,
-        duration: draw.animationSpec.durationMs,
-        easing: Easing.bezier(0.12, 0.8, 0.25, 1),
-        useNativeDriver: true,
-      }).start(() => {
-        setIsDrawing(false);
-        setShowResultCard(true);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
+      // Prepare reel candidate items
+      const places = draw.animationSpec.itemIds.map((id) => {
+        return MOCK_PLACES.find((p) => p.id === id) || draw.result;
       });
+      setReelPlaces(places);
+
+      const ITEM_WIDTH = 130;
+      const targetOffset = draw.animationSpec.resultIndex * ITEM_WIDTH - 100;
+
+      if (reduceMotion) {
+        // Short reveal mode for accessibility
+        setTimeout(() => {
+          setUiState('SUCCESS');
+          setShowResultCard(true);
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }).start();
+        }, draw.reduceMotionFallback.durationMs);
+      } else {
+        // Reel spring deceleration animation
+        Animated.timing(scrollX, {
+          toValue: targetOffset,
+          duration: draw.animationSpec.durationMs,
+          easing: Easing.bezier(0.12, 0.8, 0.25, 1),
+          useNativeDriver: true,
+        }).start(() => {
+          setUiState('SUCCESS');
+          setShowResultCard(true);
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        });
+      }
+    } catch (error) {
+      handleRandomDrawError(error);
     }
   };
 
   const handleReroll = () => {
     handleStartDraw();
   };
+
+  const isButtonLoading = uiState === 'LOADING' || randomDrawMutation.isPending;
 
   return (
     <View style={styles.container}>
@@ -118,57 +204,92 @@ export default function RandomDrawScreen() {
           </Text>
         </View>
 
-        {/* Animated Reel Canvas */}
-        <View style={styles.reelContainer}>
-          <View style={styles.reelIndicator} />
+        {/* Error Feedback Banner for Non-Empty Errors */}
+        {errorMessage && uiState !== 'EMPTY' ? (
+          <View style={styles.errorBanner}>
+            <AlertCircle size={18} color={colors.danger} style={{ marginRight: 8, marginTop: 1 }} />
+            <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            <Pressable onPress={() => setErrorMessage(null)} hitSlop={8} style={{ marginLeft: 6 }}>
+              <X size={16} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+        ) : null}
 
-          {reelPlaces.length > 0 ? (
-            <Animated.View
-              style={[
-                styles.reelTrack,
-                {
-                  transform: [{ translateX: Animated.multiply(scrollX, -1) }],
-                },
-              ]}
-            >
-              {reelPlaces.map((plc, idx) => (
-                <View key={idx} style={styles.reelItem}>
-                  <Image
-                    source={{
-                      uri:
-                        plc.heroImageUrl ||
-                        'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&q=80',
-                    }}
-                    style={styles.reelImage}
-                  />
-                  <Text style={styles.reelItemName} numberOfLines={1}>
-                    {plc.name}
-                  </Text>
-                </View>
-              ))}
-            </Animated.View>
-          ) : (
-            <View style={styles.reelPlaceholder}>
-              <Text style={styles.reelPlaceholderText}>
-                Nhấn “Mở kèo ngay” để quay số
-              </Text>
+        {/* 4 UI States Rendering: EMPTY vs REEL (IDLE / LOADING / SUCCESS) */}
+        {uiState === 'EMPTY' ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconWrap}>
+              <Dices size={30} color={colors.textMuted} />
             </View>
-          )}
-        </View>
+            <Text style={styles.emptyTitle}>Chưa có kèo để quay</Text>
+            <Text style={styles.emptyDescription}>
+              Hiện chưa có địa điểm nào phù hợp. Hãy thử lại sau hoặc thay đổi điều kiện.
+            </Text>
+            <PrimaryButton
+              title="Thử lại"
+              icon={<RefreshCw size={16} color={colors.textInverse} />}
+              onPress={handleStartDraw}
+              style={styles.emptyRetryBtn}
+            />
+          </View>
+        ) : (
+          <View style={styles.reelContainer}>
+            <View style={styles.reelIndicator} />
 
-        {/* Big CTA when not drawn yet or drawing */}
-        {!showResultCard ? (
+            {uiState === 'LOADING' ? (
+              <View style={styles.reelPlaceholder}>
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.xs }} />
+                <Text style={styles.reelLoadingText}>Đang tìm kèo...</Text>
+              </View>
+            ) : reelPlaces.length > 0 ? (
+              <Animated.View
+                style={[
+                  styles.reelTrack,
+                  {
+                    transform: [{ translateX: Animated.multiply(scrollX, -1) }],
+                  },
+                ]}
+              >
+                {reelPlaces.map((plc, idx) => (
+                  <View key={idx} style={styles.reelItem}>
+                    <Image
+                      source={{
+                        uri:
+                          plc.heroImageUrl ||
+                          'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&q=80',
+                      }}
+                      style={styles.reelImage}
+                    />
+                    <Text style={styles.reelItemName} numberOfLines={1}>
+                      {plc.name}
+                    </Text>
+                  </View>
+                ))}
+              </Animated.View>
+            ) : (
+              <View style={styles.reelPlaceholder}>
+                <Text style={styles.reelPlaceholderText}>
+                  Nhấn “Mở kèo ngay” để bắt đầu
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Primary CTA button during IDLE or LOADING */}
+        {(uiState === 'IDLE' || uiState === 'LOADING') && (
           <PrimaryButton
-            title={isDrawing ? 'Đang quay số phận...' : 'Mở kèo ngay'}
+            title={isButtonLoading ? 'Đang tìm kèo...' : 'Mở kèo ngay'}
             icon={<Dices size={20} color={colors.textInverse} />}
-            loading={isDrawing}
+            loading={isButtonLoading}
+            disabled={isButtonLoading}
             onPress={handleStartDraw}
             style={styles.drawCTA}
           />
-        ) : null}
+        )}
 
         {/* Celebratory Result Card Reveal */}
-        {showResultCard && currentDraw ? (
+        {showResultCard && currentDraw && uiState === 'SUCCESS' ? (
           <Animated.View style={[styles.resultRevealCard, { opacity: fadeAnim }]}>
             <View style={styles.revealHeader}>
               <View style={styles.tagChot}>
@@ -393,5 +514,69 @@ const styles = StyleSheet.create({
   },
   actionButtonsCol: {
     gap: 6,
+  },
+  emptyContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  emptyIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    ...typography.cardTitle,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    ...typography.caption,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
+  },
+  emptyRetryBtn: {
+    minWidth: 140,
+    height: 44,
+  },
+  reelLoadingText: {
+    ...typography.captionMedium,
+    color: colors.textInverse,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.closedLight,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: spacing.md,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: colors.danger,
   },
 });

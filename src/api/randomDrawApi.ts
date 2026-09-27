@@ -3,7 +3,7 @@
  * Section 3.5 & 4.2 of FE_API_INTEGRATION_GUIDE.md
  */
 
-import { apiClient, generateIdempotencyKey, USE_MOCKS } from './client';
+import { apiClient, generateIdempotencyKey, USE_MOCKS, ApiError, generateUUID } from './client';
 import {
   RandomDrawCreate,
   RandomDraw,
@@ -33,8 +33,22 @@ export const randomDrawApi = {
     if (USE_MOCKS) {
       await new Promise((r) => setTimeout(r, 450));
       const pool = MOCK_PLACES.filter((p) => !payload.excludedPlaceIds?.includes(p.id));
+
+      if (pool.length === 0) {
+        throw new ApiError({
+          type: 'https://docs.chotkeo.example/problems/constraints-too-strict',
+          title: 'Chưa có địa điểm phù hợp',
+          status: 422,
+          detail: 'Hiện chưa có địa điểm nào phù hợp để mở kèo.',
+          instance: '/api/v1/random-draws',
+          code: 'CONSTRAINTS_TOO_STRICT',
+          requestId: generateUUID(),
+          retryable: false,
+        });
+      }
+
       const chosenIndex = Math.floor(Math.random() * pool.length);
-      const winner = pool[chosenIndex] || MOCK_PLACES[0];
+      const winner = pool[chosenIndex];
 
       // Prepare 20 items for reel, placing the winning item at index 15
       const reel = [];
@@ -93,16 +107,37 @@ export const randomDrawApi = {
   async reroll(drawId: UUID, payload: RandomDrawRerollRequest = {}): Promise<RandomDraw> {
     if (USE_MOCKS) {
       await new Promise((r) => setTimeout(r, 400));
-      const winner = MOCK_PLACES[Math.floor(Math.random() * MOCK_PLACES.length)];
+      // In mock, if excludePrevious is requested or MOCK_PLACES is empty
+      const pool = MOCK_PLACES.filter((p) => {
+        if (payload.excludePrevious && p.id === MOCK_PLACES[0].id && MOCK_PLACES.length <= 1) {
+          return false;
+        }
+        return true;
+      });
+
+      if (pool.length === 0) {
+        throw new ApiError({
+          type: 'https://docs.chotkeo.example/problems/constraints-too-strict',
+          title: 'Chưa có địa điểm phù hợp',
+          status: 422,
+          detail: 'Hiện chưa có địa điểm nào phù hợp để mở kèo.',
+          instance: `/api/v1/random-draws/${drawId}/rerolls`,
+          code: 'CONSTRAINTS_TOO_STRICT',
+          requestId: generateUUID(),
+          retryable: false,
+        });
+      }
+
+      const winner = pool[Math.floor(Math.random() * pool.length)];
       const reel = Array.from({ length: 20 }, (_, i) =>
-        i === 15 ? winner.id : MOCK_PLACES[i % MOCK_PLACES.length].id
+        i === 15 ? winner.id : pool[i % pool.length].id
       );
 
       return {
         id: `draw-${Date.now()}`,
         status: 'COMMITTED',
         result: winner,
-        poolSize: MOCK_PLACES.length,
+        poolSize: pool.length,
         poolVersion: 'pool-hanoi-v1.2',
         ruleVersion: 'random-v1.3',
         animationSpec: {
