@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { AppHeader } from '../../src/components/AppHeader';
@@ -17,9 +18,9 @@ import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { roomApi } from '../../src/api/roomApi';
 import { placeApi } from '../../src/api/placeApi';
-import { PlaceSummary } from '../../src/types/api';
+import { PlaceSummary, ProblemDetail } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
-import { Plus, Trash2, Check, Users, Sparkles, Clock, X, Minus } from 'lucide-react-native';
+import { Plus, Trash2, Check, Users, Sparkles, Clock, X, Minus, AlertCircle } from 'lucide-react-native';
 
 type CloseMode = 'PRESET' | 'CUSTOM' | 'MANUAL';
 
@@ -35,11 +36,24 @@ const QUICK_PRESETS = [
 
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const [step2Y, setStep2Y] = useState<number>(0);
+
+  // Responsive check: wrap header when available card width is tight or font is enlarged
+  const shouldWrapHeader = windowWidth - 64 < 355 || fontScale > 1.05;
 
   const [title, setTitle] = useState('');
   const [availablePlaces, setAvailablePlaces] = useState<PlaceSummary[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
   const [allowChange, setAllowChange] = useState(true);
+
+  // Field & form validation errors
+  const [optionError, setOptionError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [closesAtError, setClosesAtError] = useState<string | null>(null);
+  const [votingRuleError, setVotingRuleError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
   // Close duration state
   const [closeMode, setCloseMode] = useState<CloseMode>('PRESET');
@@ -78,15 +92,103 @@ export default function CreateRoomScreen() {
 
   const selectedPlaces = availablePlaces.filter((p) => selectedPlaceIds.includes(p.id));
 
+  const clearErrors = () => {
+    setOptionError(null);
+    setTitleError(null);
+    setClosesAtError(null);
+    setVotingRuleError(null);
+    setGeneralError(null);
+  };
+
+  const scrollToOptionsSection = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, step2Y - 16),
+        animated: true,
+      });
+    }, 50);
+  };
+
   const handleTogglePlace = (id: string) => {
+    let nextIds: string[];
     if (selectedPlaceIds.includes(id)) {
-      if (selectedPlaceIds.length <= 2) {
-        return; // Minimum 2 options required
-      }
-      setSelectedPlaceIds((prev) => prev.filter((p) => p !== id));
+      nextIds = selectedPlaceIds.filter((p) => p !== id);
     } else {
-      if (selectedPlaceIds.length >= 10) return; // Max 10
-      setSelectedPlaceIds((prev) => [...prev, id]);
+      if (selectedPlaceIds.length >= 10) {
+        setOptionError('Phòng kèo chỉ được có tối đa 10 địa điểm.');
+        return;
+      }
+      nextIds = [...selectedPlaceIds, id];
+    }
+    setSelectedPlaceIds(nextIds);
+
+    // Clear option error if within valid range [2, 10]
+    if (nextIds.length >= 2 && nextIds.length <= 10) {
+      setOptionError(null);
+    }
+    if (generalError) {
+      setGeneralError(null);
+    }
+  };
+
+  const handleCreateRoomError = (error: unknown) => {
+    let mappedAnyField = false;
+
+    if (error && typeof error === 'object') {
+      const anyErr = error as any;
+      const problem: ProblemDetail | undefined = anyErr.problem;
+      const errors = problem?.errors;
+
+      if (Array.isArray(errors) && errors.length > 0) {
+        for (const err of errors) {
+          const field = (err.field || '').toLowerCase();
+          const msg = err.message || '';
+
+          if (field.includes('option') || field.includes('place')) {
+            mappedAnyField = true;
+            const friendlyMsg =
+              selectedPlaceIds.length < 2
+                ? selectedPlaceIds.length === 0
+                  ? 'Bạn cần thêm ít nhất 2 địa điểm để tạo phòng kèo.'
+                  : 'Thêm ít nhất 1 địa điểm nữa để tạo phòng kèo.'
+                : selectedPlaceIds.length > 10
+                ? 'Phòng kèo chỉ được có tối đa 10 địa điểm.'
+                : msg && !msg.includes('_') && !msg.includes('{')
+                ? msg
+                : 'Bạn cần thêm ít nhất 2 địa điểm để tạo phòng kèo.';
+            setOptionError(friendlyMsg);
+            scrollToOptionsSection();
+          } else if (field.includes('title')) {
+            mappedAnyField = true;
+            setTitleError(msg || 'Tên phòng không hợp lệ.');
+          } else if (field.includes('close')) {
+            mappedAnyField = true;
+            setClosesAtError(msg || 'Thời gian đóng bình chọn không hợp lệ.');
+          } else if (field.includes('voting') || field.includes('rule')) {
+            mappedAnyField = true;
+            setVotingRuleError(msg || 'Quy tắc bình chọn không hợp lệ.');
+          }
+        }
+      } else if (
+        problem?.code === 'VALIDATION_FAILED' ||
+        anyErr.code === 'VALIDATION_FAILED' ||
+        anyErr.status === 400 ||
+        anyErr.status === 422
+      ) {
+        if (selectedPlaceIds.length < 2) {
+          mappedAnyField = true;
+          setOptionError(
+            selectedPlaceIds.length === 0
+              ? 'Bạn cần thêm ít nhất 2 địa điểm để tạo phòng kèo.'
+              : 'Thêm ít nhất 1 địa điểm nữa để tạo phòng kèo.'
+          );
+          scrollToOptionsSection();
+        }
+      }
+    }
+
+    if (!mappedAnyField) {
+      setGeneralError('Không thể tạo phòng kèo. Vui lòng kiểm tra lại thông tin.');
     }
   };
 
@@ -129,6 +231,25 @@ export default function CreateRoomScreen() {
   };
 
   const handleCreateRoom = async () => {
+    clearErrors();
+
+    const optionCount = selectedPlaceIds.length;
+    if (optionCount < 2) {
+      setOptionError(
+        optionCount === 0
+          ? 'Bạn cần thêm ít nhất 2 địa điểm để tạo phòng kèo.'
+          : 'Thêm ít nhất 1 địa điểm nữa để tạo phòng kèo.'
+      );
+      scrollToOptionsSection();
+      return;
+    }
+
+    if (optionCount > 10) {
+      setOptionError('Phòng kèo chỉ được có tối đa 10 địa điểm.');
+      scrollToOptionsSection();
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       let closesAt: string | null = null;
@@ -162,8 +283,14 @@ export default function CreateRoomScreen() {
         closesAt,
       });
 
-      // Navigate to rooms list or detail
-      router.replace('/(app)/(tabs)/rooms');
+      // Navigate to room detail or rooms list on success only
+      if (newRoom?.id) {
+        router.replace(`/rooms/${newRoom.id}`);
+      } else {
+        router.replace('/(app)/(tabs)/rooms');
+      }
+    } catch (error) {
+      handleCreateRoomError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -178,6 +305,7 @@ export default function CreateRoomScreen() {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -187,28 +315,65 @@ export default function CreateRoomScreen() {
           <Text style={styles.stepTitle}>Bước 1: Tên phòng kèo (tùy chọn)</Text>
           <TextInput
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(text) => {
+              setTitle(text);
+              if (titleError) setTitleError(null);
+              if (generalError) setGeneralError(null);
+            }}
             placeholder="Ví dụ: Tối nay quẩy ở đâu cả nhà? 🍕"
             placeholderTextColor={colors.textMuted}
-            style={styles.input}
+            style={[styles.input, titleError ? styles.inputError : null]}
           />
+          {titleError ? (
+            <View style={styles.fieldErrorBox}>
+              <AlertCircle size={14} color={colors.danger} />
+              <Text style={styles.fieldErrorText}>{titleError}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Step 2: Chọn phương án địa điểm (2-10 chỗ) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.stepTitle}>
-              Bước 2: Danh sách phương án ({selectedPlaceIds.length}/10)
-            </Text>
+        <View
+          style={[styles.section, optionError ? styles.sectionError : null]}
+          onLayout={(e) => {
+            setStep2Y(e.nativeEvent.layout.y);
+          }}
+        >
+          <View style={[styles.sectionHeader, shouldWrapHeader && styles.sectionHeaderWrapped]}>
+            <View style={[styles.sectionTitleWrap, shouldWrapHeader && styles.sectionTitleWrapFull]}>
+              <Text
+                style={[styles.sectionTitle, optionError ? styles.stepTitleError : null]}
+                allowFontScaling={true}
+              >
+                Bước 2: Danh sách phương án ({selectedPlaceIds.length}/10)
+              </Text>
+            </View>
+
             <Pressable
               onPress={() => setShowPlacePicker((v) => !v)}
-              style={styles.addOptionBtn}
+              style={styles.addPlaceButton}
+              accessibilityRole="button"
+              accessibilityLabel="Thêm quán"
             >
-              <Plus size={14} color={colors.primary} />
-              <Text style={styles.addOptionText}>Thêm quán</Text>
+              <Plus size={16} color={colors.primary} />
+              <Text
+                style={styles.addPlaceButtonText}
+                numberOfLines={1}
+                allowFontScaling={true}
+              >
+                Thêm quán
+              </Text>
             </Pressable>
           </View>
-          <Text style={styles.hintText}>Cần tối thiểu 2 phương án để mở bình chọn</Text>
+
+          {optionError ? (
+            <View style={styles.inlineErrorBox}>
+              <AlertCircle size={15} color={colors.danger} />
+              <Text style={styles.inlineErrorText}>{optionError}</Text>
+            </View>
+          ) : (
+            <Text style={styles.hintText}>Cần tối thiểu 2 phương án để mở bình chọn</Text>
+          )}
 
           {/* Selected places cards */}
           {selectedPlaces.map((plc, idx) => (
@@ -231,17 +396,23 @@ export default function CreateRoomScreen() {
                 </Text>
               </View>
 
-              {selectedPlaceIds.length > 2 ? (
-                <Pressable
-                  onPress={() => handleTogglePlace(plc.id)}
-                  style={styles.removeBtn}
-                  accessibilityLabel="Xóa phương án này"
-                >
-                  <Trash2 size={16} color={colors.danger} />
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => handleTogglePlace(plc.id)}
+                style={styles.removeBtn}
+                accessibilityLabel="Xóa phương án này"
+              >
+                <Trash2 size={16} color={colors.danger} />
+              </Pressable>
             </View>
           ))}
+
+          {selectedPlaces.length === 0 ? (
+            <View style={styles.emptyPlacesBox}>
+              <Text style={styles.emptyPlacesText}>
+                Chưa có địa điểm nào được chọn. Hãy bấm "+ Thêm quán" để thêm phương án.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Place picker quick selection */}
           {showPlacePicker ? (
@@ -277,7 +448,11 @@ export default function CreateRoomScreen() {
             </View>
 
             <Pressable
-              onPress={() => setAllowChange((v) => !v)}
+              onPress={() => {
+                setAllowChange((v) => !v);
+                if (votingRuleError) setVotingRuleError(null);
+                if (generalError) setGeneralError(null);
+              }}
               style={[styles.ruleRow, { borderBottomWidth: 0, marginTop: 10 }]}
             >
               <View style={{ flex: 1 }}>
@@ -294,6 +469,13 @@ export default function CreateRoomScreen() {
               </View>
             </Pressable>
           </View>
+
+          {votingRuleError ? (
+            <View style={styles.fieldErrorBox}>
+              <AlertCircle size={14} color={colors.danger} />
+              <Text style={styles.fieldErrorText}>{votingRuleError}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Step 4: Thời gian đóng bình chọn */}
@@ -310,6 +492,8 @@ export default function CreateRoomScreen() {
                   onPress={() => {
                     setCloseMode('PRESET');
                     setPresetHours(h);
+                    if (closesAtError) setClosesAtError(null);
+                    if (generalError) setGeneralError(null);
                   }}
                   style={[
                     styles.durationBtn,
@@ -335,7 +519,11 @@ export default function CreateRoomScreen() {
           <View style={[styles.durationGridRow, { marginTop: 12 }]}>
             {/* Tự chọn */}
             <Pressable
-              onPress={handleOpenCustomModal}
+              onPress={() => {
+                handleOpenCustomModal();
+                if (closesAtError) setClosesAtError(null);
+                if (generalError) setGeneralError(null);
+              }}
               style={[
                 styles.durationBtn,
                 closeMode === 'CUSTOM' && styles.durationBtnSelected,
@@ -366,7 +554,11 @@ export default function CreateRoomScreen() {
 
             {/* Cho đến khi tôi đóng */}
             <Pressable
-              onPress={() => setCloseMode('MANUAL')}
+              onPress={() => {
+                setCloseMode('MANUAL');
+                if (closesAtError) setClosesAtError(null);
+                if (generalError) setGeneralError(null);
+              }}
               style={[
                 styles.durationBtn,
                 closeMode === 'MANUAL' && styles.durationBtnSelected,
@@ -386,6 +578,13 @@ export default function CreateRoomScreen() {
               </Text>
             </Pressable>
           </View>
+
+          {closesAtError ? (
+            <View style={styles.fieldErrorBox}>
+              <AlertCircle size={14} color={colors.danger} />
+              <Text style={styles.fieldErrorText}>{closesAtError}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={{ height: 100 }} />
@@ -393,6 +592,12 @@ export default function CreateRoomScreen() {
 
       {/* Primary CTA */}
       <View style={styles.stickyCTA}>
+        {generalError ? (
+          <View style={styles.generalErrorBox}>
+            <AlertCircle size={16} color={colors.danger} />
+            <Text style={styles.generalErrorText}>{generalError}</Text>
+          </View>
+        ) : null}
         <PrimaryButton
           title="Tạo phòng kèo"
           icon={<Users size={18} color={colors.textInverse} />}
@@ -605,11 +810,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 6,
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   hintText: {
     ...typography.caption,
     color: colors.textSecondary,
@@ -625,19 +825,52 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
   },
-  addOptionBtn: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryLight,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    width: '100%',
+    marginBottom: 8,
   },
-  addOptionText: {
+  sectionHeaderWrapped: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  sectionTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionTitleWrapFull: {
+    flex: undefined,
+    width: '100%',
+  },
+  sectionTitle: {
+    ...typography.cardTitle,
+    fontSize: 16,
+    color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  addPlaceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minHeight: 44,
+    backgroundColor: colors.primaryLight,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+  },
+  addPlaceButtonText: {
     ...typography.captionMedium,
     color: colors.primary,
     fontWeight: '700',
-    marginLeft: 4,
+    fontSize: 13,
+    marginLeft: 6,
   },
   selectedPlaceRow: {
     flexDirection: 'row',
@@ -959,5 +1192,80 @@ const styles = StyleSheet.create({
   },
   createCTA: {
     height: 50,
+  },
+  sectionError: {
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  stepTitleError: {
+    color: colors.danger,
+  },
+  inputError: {
+    borderColor: colors.danger,
+  },
+  inlineErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    marginTop: 4,
+    marginBottom: spacing.xs,
+  },
+  inlineErrorText: {
+    ...typography.captionMedium,
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  fieldErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  fieldErrorText: {
+    ...typography.caption,
+    color: colors.danger,
+    fontSize: 12,
+  },
+  generalErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  generalErrorText: {
+    ...typography.captionMedium,
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  emptyPlacesBox: {
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+  },
+  emptyPlacesText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });
