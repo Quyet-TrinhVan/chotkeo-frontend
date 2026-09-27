@@ -7,6 +7,9 @@ import {
   StyleSheet,
   Pressable,
   Image,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { AppHeader } from '../../src/components/AppHeader';
@@ -16,7 +19,19 @@ import { roomApi } from '../../src/api/roomApi';
 import { placeApi } from '../../src/api/placeApi';
 import { PlaceSummary } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
-import { Plus, Trash2, Check, Users, Sparkles, Clock } from 'lucide-react-native';
+import { Plus, Trash2, Check, Users, Sparkles, Clock, X, Minus } from 'lucide-react-native';
+
+type CloseMode = 'PRESET' | 'CUSTOM' | 'MANUAL';
+
+const QUICK_PRESETS = [
+  { label: '30 phút', h: 0, m: 30 },
+  { label: '1 giờ', h: 1, m: 0 },
+  { label: '1 giờ 30 phút', h: 1, m: 30 },
+  { label: '3 giờ', h: 3, m: 0 },
+  { label: '4 giờ', h: 4, m: 0 },
+  { label: '12 giờ', h: 12, m: 0 },
+  { label: '24 giờ (1 ngày)', h: 24, m: 0 },
+];
 
 export default function CreateRoomScreen() {
   const router = useRouter();
@@ -25,7 +40,20 @@ export default function CreateRoomScreen() {
   const [availablePlaces, setAvailablePlaces] = useState<PlaceSummary[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
   const [allowChange, setAllowChange] = useState(true);
-  const [closesInHours, setClosesInHours] = useState<number | null>(2);
+
+  // Close duration state
+  const [closeMode, setCloseMode] = useState<CloseMode>('PRESET');
+  const [presetHours, setPresetHours] = useState<number>(2); // Default 2 hours
+  const [customHours, setCustomHours] = useState<number>(3);
+  const [customMinutes, setCustomMinutes] = useState<number>(30);
+  const [hasSelectedCustom, setHasSelectedCustom] = useState<boolean>(false);
+  const [showCustomModal, setShowCustomModal] = useState<boolean>(false);
+
+  // Modal temporary values
+  const [tempHours, setTempHours] = useState<number>(3);
+  const [tempMinutes, setTempMinutes] = useState<number>(30);
+  const [customError, setCustomError] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
 
@@ -62,12 +90,57 @@ export default function CreateRoomScreen() {
     }
   };
 
+  const handleOpenCustomModal = () => {
+    setTempHours(customHours);
+    setTempMinutes(customMinutes);
+    setCustomError(null);
+    setShowCustomModal(true);
+  };
+
+  const handleConfirmCustom = () => {
+    const totalMinutes = tempHours * 60 + tempMinutes;
+    if (totalMinutes <= 0 || tempHours < 0 || tempMinutes < 0 || tempHours > 168 || tempMinutes >= 60) {
+      setCustomError('Vui lòng chọn thời gian hợp lệ.');
+      return;
+    }
+
+    setCustomHours(tempHours);
+    setCustomMinutes(tempMinutes);
+    setHasSelectedCustom(true);
+    setCloseMode('CUSTOM');
+    setShowCustomModal(false);
+    setCustomError(null);
+  };
+
+  const handleCancelCustom = () => {
+    setShowCustomModal(false);
+    setCustomError(null);
+    if (!hasSelectedCustom && closeMode === 'CUSTOM') {
+      setCloseMode('PRESET');
+    }
+  };
+
+  const getCustomSubtitle = () => {
+    if (!hasSelectedCustom) return null;
+    const parts: string[] = [];
+    if (customHours > 0) parts.push(`${customHours} giờ`);
+    if (customMinutes > 0) parts.push(`${customMinutes} phút`);
+    return parts.join(' ');
+  };
+
   const handleCreateRoom = async () => {
     setIsSubmitting(true);
     try {
-      const closesAt = closesInHours
-        ? new Date(Date.now() + closesInHours * 3600 * 1000).toISOString()
-        : null;
+      let closesAt: string | null = null;
+      if (closeMode === 'PRESET') {
+        closesAt = new Date(Date.now() + presetHours * 3600 * 1000).toISOString();
+      } else if (closeMode === 'CUSTOM') {
+        const totalMinutes = customHours * 60 + customMinutes;
+        closesAt = new Date(Date.now() + totalMinutes * 60 * 1000).toISOString();
+      } else {
+        // MANUAL: "Cho đến khi tôi đóng"
+        closesAt = null;
+      }
 
       const newRoom = await roomApi.createRoom({
         title: title.trim() || 'Kèo đi chơi nhóm',
@@ -196,7 +269,7 @@ export default function CreateRoomScreen() {
             <View style={styles.ruleRow}>
               <View>
                 <Text style={styles.ruleLabel}>Hình thức biểu quyết</Text>
-                <Text style={styles.ruleDesc}>Mỗi người chọn đúng 1 phương án (MVP: ONE_CHOICE)</Text>
+                <Text style={styles.ruleDesc}>Mỗi người chọn 1 phương án</Text>
               </View>
               <View style={styles.ruleBadge}>
                 <Text style={styles.ruleBadgeText}>1 phiếu</Text>
@@ -223,34 +296,95 @@ export default function CreateRoomScreen() {
           </View>
         </View>
 
-        {/* Step 4: Thời hạn đóng bình chọn */}
+        {/* Step 4: Thời gian đóng bình chọn */}
         <View style={styles.section}>
           <Text style={styles.stepTitle}>Bước 4: Thời gian đóng bình chọn</Text>
-          <View style={styles.durationRow}>
-            {[
-              { val: 1, label: '1 giờ' },
-              { val: 2, label: '2 giờ' },
-              { val: 6, label: '6 giờ' },
-              { val: null, label: 'Đóng thủ công' },
-            ].map((d) => (
-              <Pressable
-                key={String(d.val)}
-                onPress={() => setClosesInHours(d.val)}
+          
+          {/* Row 1: Presets 1 giờ, 2 giờ, 6 giờ */}
+          <View style={styles.durationGridRow}>
+            {[1, 2, 6].map((h) => {
+              const isSelected = closeMode === 'PRESET' && presetHours === h;
+              return (
+                <Pressable
+                  key={h}
+                  onPress={() => {
+                    setCloseMode('PRESET');
+                    setPresetHours(h);
+                  }}
+                  style={[
+                    styles.durationBtn,
+                    isSelected && styles.durationBtnSelected,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${h} giờ`}
+                >
+                  <Text
+                    style={[
+                      styles.durationBtnText,
+                      isSelected && styles.durationBtnTextSelected,
+                    ]}
+                  >
+                    {h} giờ
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Row 2: Tự chọn & Cho đến khi tôi đóng */}
+          <View style={[styles.durationGridRow, { marginTop: 12 }]}>
+            {/* Tự chọn */}
+            <Pressable
+              onPress={handleOpenCustomModal}
+              style={[
+                styles.durationBtn,
+                closeMode === 'CUSTOM' && styles.durationBtnSelected,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Tự chọn thời gian"
+            >
+              <Text
                 style={[
-                  styles.durationBtn,
-                  closesInHours === d.val && styles.durationBtnSelected,
+                  styles.durationBtnText,
+                  closeMode === 'CUSTOM' && styles.durationBtnTextSelected,
                 ]}
               >
+                Tự chọn
+              </Text>
+              {hasSelectedCustom ? (
                 <Text
                   style={[
-                    styles.durationBtnText,
-                    closesInHours === d.val && styles.durationBtnTextSelected,
+                    styles.durationSubText,
+                    closeMode === 'CUSTOM' && styles.durationSubTextSelected,
                   ]}
+                  numberOfLines={1}
                 >
-                  {d.label}
+                  {getCustomSubtitle()}
                 </Text>
-              </Pressable>
-            ))}
+              ) : null}
+            </Pressable>
+
+            {/* Cho đến khi tôi đóng */}
+            <Pressable
+              onPress={() => setCloseMode('MANUAL')}
+              style={[
+                styles.durationBtn,
+                closeMode === 'MANUAL' && styles.durationBtnSelected,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Cho đến khi tôi đóng"
+            >
+              <Text
+                style={[
+                  styles.durationBtnText,
+                  styles.durationBtnManualText,
+                  closeMode === 'MANUAL' && styles.durationBtnTextSelected,
+                ]}
+                numberOfLines={2}
+              >
+                Cho đến khi{'\n'}tôi đóng
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -267,6 +401,186 @@ export default function CreateRoomScreen() {
           style={styles.createCTA}
         />
       </View>
+
+      {/* Modal / BottomSheet: Chọn thời gian đóng */}
+      <Modal
+        visible={showCustomModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCancelCustom}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={handleCancelCustom} />
+          <View style={styles.modalSheetContainer}>
+            <View style={styles.modalHandleBar} />
+
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Chọn thời gian đóng</Text>
+                <Text style={styles.modalSubtitle}>
+                  Bình chọn sẽ tự động kết thúc sau khoảng thời gian này
+                </Text>
+              </View>
+              <Pressable
+                onPress={handleCancelCustom}
+                style={styles.modalCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Đóng"
+              >
+                <X size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Steppers: Giờ & Phút */}
+            <View style={styles.timeInputsRow}>
+              {/* Giờ */}
+              <View style={styles.timeInputCol}>
+                <Text style={styles.timeInputLabel}>Số giờ</Text>
+                <View style={styles.stepperContainer}>
+                  <Pressable
+                    onPress={() => {
+                      setTempHours((h) => Math.max(0, h - 1));
+                      setCustomError(null);
+                    }}
+                    style={styles.stepperBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Giảm 1 giờ"
+                  >
+                    <Minus size={18} color={colors.textPrimary} />
+                  </Pressable>
+                  <TextInput
+                    value={String(tempHours)}
+                    onChangeText={(text) => {
+                      const val = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                      setTempHours(isNaN(val) ? 0 : Math.min(val, 168));
+                      setCustomError(null);
+                    }}
+                    keyboardType="number-pad"
+                    style={styles.stepperInput}
+                    maxLength={3}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setTempHours((h) => Math.min(168, h + 1));
+                      setCustomError(null);
+                    }}
+                    style={styles.stepperBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Tăng 1 giờ"
+                  >
+                    <Plus size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Phút */}
+              <View style={styles.timeInputCol}>
+                <Text style={styles.timeInputLabel}>Số phút</Text>
+                <View style={styles.stepperContainer}>
+                  <Pressable
+                    onPress={() => {
+                      setTempMinutes((m) => Math.max(0, m - 5));
+                      setCustomError(null);
+                    }}
+                    style={styles.stepperBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Giảm 5 phút"
+                  >
+                    <Minus size={18} color={colors.textPrimary} />
+                  </Pressable>
+                  <TextInput
+                    value={String(tempMinutes)}
+                    onChangeText={(text) => {
+                      const val = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                      setTempMinutes(isNaN(val) ? 0 : Math.min(val, 59));
+                      setCustomError(null);
+                    }}
+                    keyboardType="number-pad"
+                    style={styles.stepperInput}
+                    maxLength={2}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setTempMinutes((m) => Math.min(59, m + 5));
+                      setCustomError(null);
+                    }}
+                    style={styles.stepperBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Tăng 5 phút"
+                  >
+                    <Plus size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            {/* Quick Presets */}
+            <Text style={styles.quickPresetTitle}>Gợi ý thời gian:</Text>
+            <View style={styles.quickPresetChipsWrap}>
+              {QUICK_PRESETS.map((p) => {
+                const isSelected = tempHours === p.h && tempMinutes === p.m;
+                return (
+                  <Pressable
+                    key={p.label}
+                    onPress={() => {
+                      setTempHours(p.h);
+                      setTempMinutes(p.m);
+                      setCustomError(null);
+                    }}
+                    style={[
+                      styles.quickPresetChip,
+                      isSelected && styles.quickPresetChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.quickPresetChipText,
+                        isSelected && styles.quickPresetChipTextSelected,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Summary preview */}
+            <View style={styles.summaryBox}>
+              <Clock size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.summaryText}>
+                {tempHours === 0 && tempMinutes === 0
+                  ? 'Chưa chọn thời gian'
+                  : `Đóng sau: ${tempHours > 0 ? `${tempHours} giờ ` : ''}${tempMinutes > 0 ? `${tempMinutes} phút` : ''}`}
+              </Text>
+            </View>
+
+            {/* Error Message */}
+            {customError ? (
+              <View style={styles.customErrorBox}>
+                <Text style={styles.customErrorText}>{customError}</Text>
+              </View>
+            ) : null}
+
+            {/* Action Buttons */}
+            <View style={styles.modalActionsRow}>
+              <SecondaryButton
+                title="Hủy"
+                onPress={handleCancelCustom}
+                style={{ flex: 1, marginRight: 8 }}
+              />
+              <PrimaryButton
+                title="Xác nhận"
+                onPress={handleConfirmCustom}
+                style={{ flex: 1, marginLeft: 8 }}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -441,13 +755,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  durationRow: {
+  durationGridRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   durationBtn: {
     flex: 1,
+    minHeight: 52,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1.5,
@@ -461,12 +777,175 @@ const styles = StyleSheet.create({
   },
   durationBtnText: {
     ...typography.captionMedium,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textPrimary,
+    textAlign: 'center',
   },
   durationBtnTextSelected: {
     color: colors.primary,
     fontWeight: '700',
+  },
+  durationSubText: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  durationSubTextSelected: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  durationBtnManualText: {
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  modalSheetContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 36 : spacing.lg,
+  },
+  modalHandleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...typography.sectionTitle,
+    fontSize: 18,
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+  },
+  timeInputsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: spacing.md,
+  },
+  timeInputCol: {
+    flex: 1,
+  },
+  timeInputLabel: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperInput: {
+    flex: 1,
+    height: 44,
+    textAlign: 'center',
+    ...typography.bodyBold,
+    fontSize: 16,
+    color: colors.textPrimary,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+  },
+  quickPresetTitle: {
+    ...typography.captionMedium,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  quickPresetChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  quickPresetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickPresetChipSelected: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  quickPresetChipText: {
+    ...typography.caption,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  quickPresetChipTextSelected: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  summaryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  summaryText: {
+    ...typography.captionMedium,
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  customErrorBox: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  customErrorText: {
+    ...typography.caption,
+    color: colors.danger,
+    fontSize: 12,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
   },
   stickyCTA: {
     position: 'absolute',
