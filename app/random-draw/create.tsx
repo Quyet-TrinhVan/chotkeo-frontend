@@ -19,7 +19,6 @@ import { StatusBadge } from '../../src/components/StatusBadge';
 import { randomDrawApi } from '../../src/api/randomDrawApi';
 import { ApiError } from '../../src/api/client';
 import { RandomDraw, PlaceSummary, RandomDrawCreate } from '../../src/types/api';
-import { MOCK_PLACES } from '../../src/api/mockData';
 import { useRouter } from '../../src/navigation/router';
 import {
   Dices,
@@ -133,9 +132,7 @@ export default function RandomDrawScreen() {
       setCurrentDraw(draw);
 
       // Prepare reel candidate items
-      const places = draw.animationSpec.itemIds.map((id) => {
-        return MOCK_PLACES.find((p) => p.id === id) || draw.result;
-      });
+      const places = draw.animationSpec.itemIds.map(() => draw.result);
       setReelPlaces(places);
 
       const ITEM_WIDTH = 130;

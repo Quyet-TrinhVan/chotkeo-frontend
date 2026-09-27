@@ -13,10 +13,10 @@ import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { StatusBadge } from '../../src/components/StatusBadge';
 import { Chip } from '../../src/components/Chip';
-import { MOCK_PLACES, MOCK_PLACE_DETAILS } from '../../src/api/mockData';
 import { placeApi } from '../../src/api/placeApi';
 import { PlaceDetail } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
+import { ActivityIndicator } from 'react-native';
 import {
   ArrowLeft,
   Share2,
@@ -38,60 +38,40 @@ interface PlaceDetailScreenProps {
   onBack?: () => void;
 }
 
-export default function PlaceDetailScreen({ placeId = 'plc-giang-cafe', onBack }: PlaceDetailScreenProps) {
+export default function PlaceDetailScreen({ placeId, onBack }: PlaceDetailScreenProps) {
   const router = useRouter();
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const fallbackPlace = MOCK_PLACES.find((p) => p.id === placeId) || MOCK_PLACES[0];
-  const [placeDetail, setPlaceDetail] = useState<PlaceDetail | null>(MOCK_PLACE_DETAILS[placeId] || null);
+  const [placeDetail, setPlaceDetail] = useState<PlaceDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDetail() {
+      if (!placeId) {
+        setIsLoading(false);
+        setError('Không tìm thấy thông tin địa điểm.');
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
       try {
         const data = await placeApi.getPlaceDetail(placeId);
         if (data) {
           setPlaceDetail(data);
+        } else {
+          setError('Không tìm thấy thông tin địa điểm.');
         }
       } catch (err) {
-        console.warn('getPlaceDetail failed, using fallback:', err);
+        console.warn('getPlaceDetail failed:', err);
+        setError('Không tìm thấy thông tin địa điểm hoặc đã bị gỡ bỏ.');
+      } finally {
+        setIsLoading(false);
       }
     }
     loadDetail();
   }, [placeId]);
-
-  const place = placeDetail?.summary || fallbackPlace;
-  const detail = placeDetail || MOCK_PLACE_DETAILS[place.id] || {
-    summary: place,
-    address: {
-      displayAddress: '39 Nguyễn Hữu Huân, Hàng Bạc, Hoàn Kiếm, Hà Nội',
-      normalizedAddress: '39 Nguyen Huu Huan, Hang Bac, Hoan Kiem, Ha Noi',
-    },
-    openingHours: {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      weeklyPeriods: [
-        { dayOfWeek: 1, opensAt: '07:00', closesAt: '22:30' },
-        { dayOfWeek: 2, opensAt: '07:00', closesAt: '22:30' },
-        { dayOfWeek: 3, opensAt: '07:00', closesAt: '22:30' },
-        { dayOfWeek: 4, opensAt: '07:00', closesAt: '22:30' },
-        { dayOfWeek: 5, opensAt: '07:00', closesAt: '23:00' },
-        { dayOfWeek: 6, opensAt: '07:00', closesAt: '23:00' },
-        { dayOfWeek: 7, opensAt: '07:00', closesAt: '23:00' },
-      ],
-      verifiedAt: '2026-09-20T08:00:00Z',
-    },
-    contact: {
-      phone: '0989 892 265',
-      website: 'https://chotkeo.vn',
-    },
-    amenities: [
-      { id: 'amen-1', code: 'wifi', label: 'Wifi miễn phí' },
-      { id: 'amen-2', code: 'ac', label: 'Điều hòa mát mẻ' },
-      { id: 'amen-3', code: 'parking', label: 'Chỗ để xe máy' },
-    ],
-    media: [],
-    availableActions: ['DIRECTIONS', 'ADD_TO_ROOM', 'RANDOM_DRAW', 'SHARE'],
-  };
 
   const handleBack = () => {
     if (onBack) {
@@ -106,9 +86,34 @@ export default function PlaceDetailScreen({ placeId = 'plc-giang-cafe', onBack }
     setTimeout(() => setSuccessToast(null), 2500);
   };
 
-  const formatPrice = (min: number, max: number) => {
-    return `${Math.round(min / 1000)}k - ${Math.round(max / 1000)}k VND / người`;
+  const formatPrice = (min?: number, max?: number) => {
+    if (min === undefined && max === undefined) return 'Đang cập nhật';
+    return `${Math.round((min || 0) / 1000)}k - ${Math.round((max || 0) / 1000)}k VND / người`;
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: spacing.md, color: colors.textSecondary }}>Đang tải thông tin địa điểm...</Text>
+      </View>
+    );
+  }
+
+  if (error || !placeDetail) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}>
+        <AlertTriangle size={48} color={colors.warning} />
+        <Text style={[styles.placeName, { marginTop: spacing.md, textAlign: 'center' }]}>
+          {error || 'Không tìm thấy địa điểm'}
+        </Text>
+        <PrimaryButton title="Quay lại" onPress={handleBack} style={{ marginTop: spacing.lg }} />
+      </View>
+    );
+  }
+
+  const place = placeDetail.summary;
+  const detail = placeDetail;
 
   return (
     <View style={styles.container}>
@@ -119,15 +124,19 @@ export default function PlaceDetailScreen({ placeId = 'plc-giang-cafe', onBack }
       >
         {/* Large Hero Image at Top */}
         <View style={styles.heroContainer}>
-          <Image
-            source={{
-              uri:
-                place.heroImageUrl ||
-                'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&q=80',
-            }}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
+          {place.heroImageUrl || place.heroMedia?.renditions?.[0]?.url ? (
+            <Image
+              source={{
+                uri: place.heroImageUrl || place.heroMedia?.renditions?.[0]?.url,
+              }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.heroImage, { backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' }]}>
+              <MapPin size={48} color={colors.textMuted} />
+            </View>
+          )}
 
           {/* Top Overlays */}
           <View style={styles.navOverlay}>

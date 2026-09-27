@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,16 @@ import {
   StyleSheet,
   Pressable,
   Image,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { colors, radius, spacing, typography } from '../../../src/theme/tokens';
 import { PlaceCard } from '../../../src/components/PlaceCard';
 import { useRouter } from '../../../src/navigation/router';
 import { placeApi } from '../../../src/api/placeApi';
-import { MOCK_PLACES } from '../../../src/api/mockData';
 import { PlaceSummary } from '../../../src/types/api';
-import { Sparkles, Dices, Users, Compass, ChevronRight, Flame } from 'lucide-react-native';
+import { Sparkles, Dices, Users, Compass, ChevronRight, Flame, AlertCircle } from 'lucide-react-native';
 
 interface HomeScreenProps {
   onSelectPlace?: (placeId: string) => void;
@@ -21,27 +23,56 @@ interface HomeScreenProps {
 
 export default function HomeScreen({ onSelectPlace }: HomeScreenProps) {
   const router = useRouter();
-  const [places, setPlaces] = useState<PlaceSummary[]>(MOCK_PLACES);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function loadPlaces() {
-      try {
-        const res = await placeApi.getPlaces({ pageSize: 50 });
-        if (res.places && res.places.length > 0) {
-          setPlaces(res.places);
-        }
-      } catch (err) {
-        console.warn('Failed to load places from backend:', err);
-      }
-    }
-    loadPlaces();
-  }, []);
+  // 1. Collections query: GET /api/v1/collections
+  const collectionsQuery = useQuery({
+    queryKey: ['collections'],
+    queryFn: () => placeApi.getCollections(),
+  });
 
-  // Filter places for horizontal carousels
+  // 2. Discovery Feed query: GET /api/v1/discovery/feed
+  const discoveryFeedQuery = useQuery({
+    queryKey: ['discoveryFeed'],
+    queryFn: () => placeApi.getDiscoveryFeed(),
+  });
+
+  // 3. Fallback / direct Places query: GET /api/v1/places
+  const placesQuery = useQuery({
+    queryKey: ['places'],
+    queryFn: () => placeApi.getPlaces({ pageSize: 50 }),
+  });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.allSettled([
+      collectionsQuery.refetch(),
+      discoveryFeedQuery.refetch(),
+      placesQuery.refetch(),
+    ]);
+    setIsRefreshing(false);
+  };
+
+  const collections = collectionsQuery.data ?? [];
+  const discoverySections = (discoveryFeedQuery.data ?? []).filter(
+    (s) => s.places && s.places.length > 0
+  );
+  const places = placesQuery.data?.places ?? [];
+
+  const isLoading = (discoveryFeedQuery.isLoading || placesQuery.isLoading) && !isRefreshing;
+  const isError =
+    (discoveryFeedQuery.isError || placesQuery.isError) &&
+    discoverySections.length === 0 &&
+    places.length === 0;
+
+  // Filter places for horizontal carousels when discoverySections is empty
   const nearbyPlaces = places.filter((p) => (p.distanceMeters || 0) < 1500);
   const openPlaces = places.filter((p) => p.openState === 'OPEN');
   const coffeePlaces = places.filter((p) => p.category?.code?.toLowerCase() === 'coffee');
   const budgetPlaces = places.filter((p) => (p.priceRange?.maxAmount || 0) <= 150000);
+
+  const hasAnyFeedSections = discoverySections.length > 0;
+  const hasAnyPlaces = hasAnyFeedSections || places.length > 0;
 
   const handlePlacePress = (id: string) => {
     if (onSelectPlace) {
@@ -56,6 +87,14 @@ export default function HomeScreen({ onSelectPlace }: HomeScreenProps) {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
     >
       {/* Top Greeting Area */}
       <View style={styles.topGreeting}>
@@ -72,7 +111,7 @@ export default function HomeScreen({ onSelectPlace }: HomeScreenProps) {
         </View>
       </View>
 
-      {/* Action Section: "Hôm nay chốt kiểu nào?" */}
+      {/* Action Section: "Kèo hôm nay, chốt cách nào?" */}
       <View style={styles.actionSection}>
         {/* 1. Header khu vực */}
         <View style={styles.actionHeader}>
@@ -180,147 +219,229 @@ export default function HomeScreen({ onSelectPlace }: HomeScreenProps) {
         </View>
       </View>
 
-      {/* Bộ sưu tập nổi bật banner */}
-      <View style={styles.collectionBanner}>
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
-          }}
-          style={styles.collectionImage}
-          resizeMode="cover"
-        />
-        <View style={styles.collectionOverlay}>
-          <View style={styles.collectionTag}>
-            <Text style={styles.collectionTagText}>Bộ sưu tập tuần này</Text>
+      {/* Bộ sưu tập banner (chỉ hiển thị khi backend có collections) */}
+      {collections.length > 0 && (
+        <View style={styles.collectionBanner}>
+          {collections[0].coverMedia?.renditions?.[0]?.url ? (
+            <Image
+              source={{ uri: collections[0].coverMedia.renditions[0].url }}
+              style={styles.collectionImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.collectionImage, { backgroundColor: colors.primary }]} />
+          )}
+          <View style={styles.collectionOverlay}>
+            {collections[0].theme ? (
+              <View style={styles.collectionTag}>
+                <Text style={styles.collectionTagText}>{collections[0].theme}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.collectionTitle}>{collections[0].title}</Text>
+            {collections[0].description ? (
+              <Text style={styles.collectionSub}>{collections[0].description}</Text>
+            ) : null}
           </View>
-          <Text style={styles.collectionTitle}>Chill cuối tuần Hồ Tây & Phố Cổ</Text>
-          <Text style={styles.collectionSub}>12 địa điểm cafe & quán ăn gió lộng</Text>
         </View>
-      </View>
+      )}
 
-      {/* Carousel: Gần bạn */}
-      <View style={styles.carouselSection}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Gần bạn</Text>
-            <Text style={styles.sectionSub}>Bán kính dưới 1.5km tại trung tâm</Text>
+      {/* Render Discovery Sections từ backend */}
+      {hasAnyFeedSections ? (
+        discoverySections.map((section) => (
+          <View key={section.id} style={styles.carouselSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Pressable
+                onPress={() => router.push('/search')}
+                style={styles.seeAllBtn}
+              >
+                <Text style={styles.seeAllText}>Xem tất cả</Text>
+                <ChevronRight size={14} color={colors.primary} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalScroll}
+            >
+              {section.places.map((place) => (
+                <PlaceCard
+                  key={place.id}
+                  place={place}
+                  onPress={() => handlePlacePress(place.id)}
+                />
+              ))}
+            </ScrollView>
           </View>
-          <Pressable
-            onPress={() => router.push('/search')}
-            style={styles.seeAllBtn}
-          >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
-            <ChevronRight size={14} color={colors.primary} />
+        ))
+      ) : hasAnyPlaces ? (
+        <>
+          {/* Carousel: Gần bạn (chỉ render nếu có data) */}
+          {nearbyPlaces.length > 0 && (
+            <View style={styles.carouselSection}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Gần bạn</Text>
+                  <Text style={styles.sectionSub}>Bán kính dưới 1.5km tại trung tâm</Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/search')}
+                  style={styles.seeAllBtn}
+                >
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                  <ChevronRight size={14} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {nearbyPlaces.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onPress={() => handlePlacePress(place.id)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Carousel: Đang mở cửa (chỉ render nếu có data) */}
+          {openPlaces.length > 0 && (
+            <View style={styles.carouselSection}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Đang mở cửa ngay</Text>
+                  <Text style={styles.sectionSub}>Sẵn sàng ghé ngay bây giờ</Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/search')}
+                  style={styles.seeAllBtn}
+                >
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                  <ChevronRight size={14} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {openPlaces.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onPress={() => handlePlacePress(place.id)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Carousel: Cafe góc quen (chỉ render nếu có data) */}
+          {coffeePlaces.length > 0 && (
+            <View style={styles.carouselSection}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Cafe góc quen</Text>
+                  <Text style={styles.sectionSub}>Không gian trò chuyện, làm việc và sống ảo</Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/search')}
+                  style={styles.seeAllBtn}
+                >
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                  <ChevronRight size={14} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {coffeePlaces.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onPress={() => handlePlacePress(place.id)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Carousel: Ăn ngon dưới 150K (chỉ render nếu có data) */}
+          {budgetPlaces.length > 0 && (
+            <View style={styles.carouselSection}>
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Ăn ngon dưới 150K</Text>
+                  <Text style={styles.sectionSub}>No nê hợp túi tiền sinh viên & văn phòng</Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/search')}
+                  style={styles.seeAllBtn}
+                >
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                  <ChevronRight size={14} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {budgetPlaces.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    onPress={() => handlePlacePress(place.id)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </>
+      ) : isLoading ? (
+        <View style={styles.statusBox}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.statusLoadingText}>Đang tải địa điểm...</Text>
+        </View>
+      ) : isError ? (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.emptyIconWrap, { backgroundColor: '#FEE2E2' }]}>
+            <AlertCircle size={32} color={colors.danger} />
+          </View>
+          <Text style={styles.emptyTitle}>Không thể tải dữ liệu</Text>
+          <Text style={styles.emptyDesc}>
+            Không thể kết nối hoặc máy chủ đang bận. Vui lòng thử lại.
+          </Text>
+          <Pressable style={styles.retryBtn} onPress={handleRefresh}>
+            <Text style={styles.retryBtnText}>Thử lại</Text>
           </Pressable>
         </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {nearbyPlaces.map((place) => (
-            <PlaceCard
-              key={place.id}
-              place={place}
-              onPress={() => handlePlacePress(place.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Carousel: Đang mở cửa */}
-      <View style={styles.carouselSection}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Đang mở cửa ngay</Text>
-            <Text style={styles.sectionSub}>Sẵn sàng ghé ngay bây giờ</Text>
+      ) : (
+        /* Empty state chuẩn khi toàn bộ backend chưa có địa điểm */
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconWrap}>
+            <Compass size={36} color={colors.textMuted} />
           </View>
-          <Pressable
-            onPress={() => router.push('/search')}
-            style={styles.seeAllBtn}
-          >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
-            <ChevronRight size={14} color={colors.primary} />
+          <Text style={styles.emptyTitle}>Chưa có địa điểm</Text>
+          <Text style={styles.emptyDesc}>
+            Dữ liệu địa điểm đang được cập nhật. Hãy quay lại sau.
+          </Text>
+          <Pressable style={styles.retryBtn} onPress={handleRefresh}>
+            <Text style={styles.retryBtnText}>Tải lại</Text>
           </Pressable>
         </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {openPlaces.map((place) => (
-            <PlaceCard
-              key={place.id}
-              place={place}
-              onPress={() => handlePlacePress(place.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Carousel: Cafe góc quen */}
-      <View style={styles.carouselSection}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Cafe góc quen</Text>
-            <Text style={styles.sectionSub}>Không gian trò chuyện, làm việc và sống ảo</Text>
-          </View>
-          <Pressable
-            onPress={() => router.push('/search')}
-            style={styles.seeAllBtn}
-          >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
-            <ChevronRight size={14} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {coffeePlaces.map((place) => (
-            <PlaceCard
-              key={place.id}
-              place={place}
-              onPress={() => handlePlacePress(place.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Carousel: Ăn ngon dưới 150K */}
-      <View style={styles.carouselSection}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Ăn ngon dưới 150K</Text>
-            <Text style={styles.sectionSub}>No nê hợp túi tiền sinh viên & văn phòng</Text>
-          </View>
-          <Pressable
-            onPress={() => router.push('/search')}
-            style={styles.seeAllBtn}
-          >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
-            <ChevronRight size={14} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {budgetPlaces.map((place) => (
-            <PlaceCard
-              key={place.id}
-              place={place}
-              onPress={() => handlePlacePress(place.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      )}
 
       <View style={{ height: 30 }} />
     </ScrollView>
@@ -590,5 +711,64 @@ const styles = StyleSheet.create({
   horizontalScroll: {
     paddingLeft: spacing.md,
     paddingRight: spacing.xs,
+  },
+  statusBox: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusLoadingText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    marginHorizontal: 20,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.xs,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    ...typography.sectionTitle,
+    fontSize: 17,
+    color: colors.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptyDesc: {
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: spacing.md,
+  },
+  retryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  retryBtnText: {
+    ...typography.captionMedium,
+    color: colors.primary,
+    fontWeight: '600',
   },
 });

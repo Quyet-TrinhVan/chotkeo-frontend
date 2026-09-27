@@ -30,8 +30,8 @@ function AppNavigator() {
   const { pathname, params, push, replace, back } = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('index');
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string>('plc-giang-cafe');
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('room-weekend-coffee');
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 
   // Auth routes (never unmounted during submit or loading)
   if (pathname === '/(auth)/login') {

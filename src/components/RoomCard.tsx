@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, Image, Pressable, StyleSheet, ViewStyle } from 'react-native';
 import { colors, radius, spacing, typography } from '../theme/tokens';
-import { Room, RoomStatus } from '../types/api';
+import { Room, RoomStatus, RoomListItem } from '../types/api';
 import { ParticipantAvatarStack } from './ParticipantAvatarStack';
-import { Clock, Users, CheckCircle2 } from 'lucide-react-native';
+import { Clock, Users, CheckCircle2, MapPin } from 'lucide-react-native';
 
 interface RoomCardProps {
-  room: Room;
+  room: Room | RoomListItem;
   onPress: () => void;
   style?: ViewStyle;
 }
@@ -90,18 +90,24 @@ export function RoomCard({ room, onPress, style }: RoomCardProps) {
 
       {/* Place Thumbnails Preview */}
       <View style={styles.placesPreviewRow}>
-        {room.options.slice(0, 3).map((opt, idx) => (
+        {room.options.slice(0, 3).map((opt) => (
           <View key={opt.id} style={styles.thumbWrap}>
-            <Image
-              source={{
-                uri:
-                  opt.placeSnapshot.heroImageUrl ||
-                  'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&q=80',
-              }}
-              style={styles.thumbImage}
-            />
+            {opt.placeSnapshot?.heroImageUrl || opt.placeSnapshot?.heroMedia?.renditions?.[0]?.url ? (
+              <Image
+                source={{
+                  uri:
+                    opt.placeSnapshot.heroImageUrl ||
+                    opt.placeSnapshot.heroMedia?.renditions?.[0]?.url,
+                }}
+                style={styles.thumbImage}
+              />
+            ) : (
+              <View style={[styles.thumbImage, { backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' }]}>
+                <MapPin size={16} color={colors.textMuted} />
+              </View>
+            )}
             <Text style={styles.thumbName} numberOfLines={1}>
-              {opt.placeSnapshot.name}
+              {opt.placeSnapshot?.name || 'Địa điểm'}
             </Text>
           </View>
         ))}

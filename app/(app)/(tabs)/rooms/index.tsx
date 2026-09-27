@@ -12,9 +12,8 @@ import { FilterChip } from '../../../../src/components/Chip';
 import { EmptyState } from '../../../../src/components/EmptyState';
 import { PrimaryButton } from '../../../../src/components/PrimaryButton';
 import { roomApi } from '../../../../src/api/roomApi';
-import { MOCK_ROOMS } from '../../../../src/api/mockData';
 import { useRouter } from '../../../../src/navigation/router';
-import { Room, RoomStatus } from '../../../../src/types/api';
+import { Room, RoomStatus, RoomListItem } from '../../../../src/types/api';
 import { Plus, Users, Vote, CheckCircle2 } from 'lucide-react-native';
 
 interface RoomsScreenProps {
@@ -33,7 +32,7 @@ export default function RoomsScreen({ onSelectRoom, onCreateRoom }: RoomsScreenP
     { id: 'CLOSED', label: 'Đã chốt' },
   ];
 
-  const [rooms, setRooms] = useState<Room[]>(MOCK_ROOMS);
+  const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -42,23 +41,10 @@ export default function RoomsScreen({ onSelectRoom, onCreateRoom }: RoomsScreenP
       try {
         const filterStatus = selectedFilter === 'ALL' ? undefined : [selectedFilter];
         const res = await roomApi.getRooms({ status: filterStatus });
-        if (res.rooms && res.rooms.length > 0) {
-          setRooms(res.rooms as any);
-        } else {
-          // If backend has no rooms yet, show mock data matching filter
-          const fallback = MOCK_ROOMS.filter((room) => {
-            if (selectedFilter === 'ALL') return true;
-            return room.status === selectedFilter;
-          });
-          setRooms(fallback);
-        }
+        setRooms(res.rooms || []);
       } catch (err) {
         console.warn('roomApi.getRooms error:', err);
-        const fallback = MOCK_ROOMS.filter((room) => {
-          if (selectedFilter === 'ALL') return true;
-          return room.status === selectedFilter;
-        });
-        setRooms(fallback);
+        setRooms([]);
       } finally {
         setIsLoading(false);
       }

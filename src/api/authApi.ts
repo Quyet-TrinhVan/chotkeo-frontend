@@ -175,7 +175,7 @@ export const authApi = {
       return response.data;
     }
 
-    return MOCK_USER;
+    throw new Error('Không thể lấy thông tin người dùng');
   },
 
   /**
@@ -228,15 +228,15 @@ export const authApi = {
     return response.data;
   },
 
-  async getCurrentUser(): Promise<UserProfile> {
+  async getCurrentUser(): Promise<UserProfile | null> {
     const userJson = await secureStorage.getItemAsync('currentUser');
     if (userJson) {
       try {
         return JSON.parse(userJson);
       } catch {
-        return MOCK_USER;
+        return null;
       }
     }
-    return MOCK_USER;
+    return null;
   },
 };

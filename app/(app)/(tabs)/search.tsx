@@ -13,7 +13,6 @@ import { FilterChip } from '../../../src/components/Chip';
 import { PlaceCardHorizontal } from '../../../src/components/PlaceCardHorizontal';
 import { EmptyState } from '../../../src/components/EmptyState';
 import { placeApi } from '../../../src/api/placeApi';
-import { MOCK_CATEGORIES, MOCK_STYLES, MOCK_PLACES, MOCK_SEARCH_SUGGESTIONS } from '../../../src/api/mockData';
 import { useRouter } from '../../../src/navigation/router';
 import { PlaceSummary, SearchSuggestion } from '../../../src/types/api';
 import { List, Map as MapIcon, SlidersHorizontal, MapPin, Sparkles, Navigation } from 'lucide-react-native';
@@ -29,10 +28,32 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [places, setPlaces] = useState<PlaceSummary[]>(MOCK_PLACES);
-  const [selectedMapPlace, setSelectedMapPlace] = useState<PlaceSummary>(MOCK_PLACES[0]);
+  const [places, setPlaces] = useState<PlaceSummary[]>([]);
+  const [selectedMapPlace, setSelectedMapPlace] = useState<PlaceSummary | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; label: string }>>([
+    { id: 'cat-all', label: 'Tất cả' },
+  ]);
+  const [stylesList, setStylesList] = useState<Array<{ id: string; label: string }>>([]);
+
+  // Load taxonomies from API
+  useEffect(() => {
+    let active = true;
+    placeApi.getTaxonomies().then((res) => {
+      if (active) {
+        if (res.categories && res.categories.length > 0) {
+          setCategories([{ id: 'cat-all', label: 'Tất cả' }, ...res.categories]);
+        }
+        if (res.styles && res.styles.length > 0) {
+          setStylesList(res.styles);
+        }
+      }
+    }).catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Search API integration with debounce
   useEffect(() => {
@@ -47,11 +68,20 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
           styleIds: styleFilter,
           pageSize: 50,
         });
-        if (active && res.places && res.places.length > 0) {
-          setPlaces(res.places);
+        if (active) {
+          const list = res.places || [];
+          setPlaces(list);
+          if (list.length > 0) {
+            setSelectedMapPlace(list[0]);
+          } else {
+            setSelectedMapPlace(null);
+          }
         }
       } catch (err) {
-        // Fallback handled gracefully
+        if (active) {
+          setPlaces([]);
+          setSelectedMapPlace(null);
+        }
       }
     }
     const timer = setTimeout(search, 300);
@@ -69,16 +99,14 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
     }
     let active = true;
     placeApi.getSearchSuggestions(searchText.trim()).then((sug) => {
-      if (active && sug && sug.length > 0) {
-        setSuggestions(sug);
-      } else if (active) {
-        setSuggestions(
-          MOCK_SEARCH_SUGGESTIONS.filter((s) =>
-            s.text.toLowerCase().includes(searchText.toLowerCase())
-          )
-        );
+      if (active) {
+        setSuggestions(sug || []);
       }
-    }).catch(() => {});
+    }).catch(() => {
+      if (active) {
+        setSuggestions([]);
+      }
+    });
     return () => {
       active = false;
     };
@@ -179,7 +207,7 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
-          {MOCK_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <FilterChip
               key={cat.id}
               label={cat.label}
@@ -196,7 +224,7 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
           />
 
           {/* Styles */}
-          {MOCK_STYLES.slice(0, 3).map((st) => (
+          {stylesList.slice(0, 3).map((st) => (
             <FilterChip
               key={st.id}
               label={st.label}
@@ -256,7 +284,7 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
 
             {/* Map Markers for places */}
             {filteredPlaces.slice(0, 6).map((place, idx) => {
-              const isSelected = selectedMapPlace.id === place.id;
+              const isSelected = selectedMapPlace?.id === place.id;
               // spread markers organically
               const positions = [
                 { top: '25%', left: '22%' },

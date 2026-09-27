@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import { AppHeader } from '../../src/components/AppHeader';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { roomApi } from '../../src/api/roomApi';
-import { MOCK_PLACES } from '../../src/api/mockData';
+import { placeApi } from '../../src/api/placeApi';
+import { PlaceSummary } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
 import { Plus, Trash2, Check, Users, Sparkles, Clock } from 'lucide-react-native';
 
@@ -21,18 +22,33 @@ export default function CreateRoomScreen() {
   const router = useRouter();
 
   const [title, setTitle] = useState('');
-  const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([
-    MOCK_PLACES[0].id,
-    MOCK_PLACES[1].id,
-  ]);
+  const [availablePlaces, setAvailablePlaces] = useState<PlaceSummary[]>([]);
+  const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
   const [allowChange, setAllowChange] = useState(true);
   const [closesInHours, setClosesInHours] = useState<number | null>(2);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
 
-  const selectedPlaces = selectedPlaceIds.map(
-    (id) => MOCK_PLACES.find((p) => p.id === id) || MOCK_PLACES[0]
-  );
+  useEffect(() => {
+    async function loadPlaces() {
+      try {
+        const res = await placeApi.getPlaces({ pageSize: 50 });
+        if (res.places) {
+          setAvailablePlaces(res.places);
+          if (res.places.length >= 2) {
+            setSelectedPlaceIds([res.places[0].id, res.places[1].id]);
+          } else if (res.places.length === 1) {
+            setSelectedPlaceIds([res.places[0].id]);
+          }
+        }
+      } catch (err) {
+        console.warn('loadPlaces failed in create room:', err);
+      }
+    }
+    loadPlaces();
+  }, []);
+
+  const selectedPlaces = availablePlaces.filter((p) => selectedPlaceIds.includes(p.id));
 
   const handleTogglePlace = (id: string) => {
     if (selectedPlaceIds.includes(id)) {
@@ -158,7 +174,7 @@ export default function CreateRoomScreen() {
           {showPlacePicker ? (
             <View style={styles.pickerBox}>
               <Text style={styles.pickerTitle}>Chọn thêm từ địa điểm gần bạn:</Text>
-              {MOCK_PLACES.filter((p) => !selectedPlaceIds.includes(p.id)).map((p) => (
+              {availablePlaces.filter((p) => !selectedPlaceIds.includes(p.id)).map((p) => (
                 <Pressable
                   key={p.id}
                   onPress={() => handleTogglePlace(p.id)}

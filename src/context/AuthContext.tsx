@@ -7,7 +7,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { UserProfile, RegisterRequest } from '../types/api';
 import { authApi } from '../api/authApi';
 import { secureStorage } from '../utils/storage';
-import { MOCK_USER } from '../api/mockData';
 
 export interface AuthContextType {
   user: UserProfile | null;
@@ -23,8 +22,8 @@ export interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(MOCK_USER);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshProfile = async () => {
@@ -44,43 +43,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initAuth() {
       try {
+        const loggedOut = await secureStorage.getItemAsync('userLoggedOut');
         const token = await secureStorage.getItemAsync('accessToken');
-        if (token && !token.startsWith('mock-')) {
+
+        if (!loggedOut && token && !token.startsWith('mock-')) {
           try {
             const me = await authApi.getMe();
-            if (isMounted) {
+            if (isMounted && me) {
               setUser(me);
               setIsAuthenticated(true);
+              return;
             }
-            return;
           } catch {
-            // Token expired or invalid, clear invalid credentials
             await secureStorage.deleteItemAsync('accessToken');
             await secureStorage.deleteItemAsync('refreshToken');
             await secureStorage.deleteItemAsync('currentUser');
           }
         }
 
-        // Auto login demo account so backend queries work seamlessly
-        try {
-          await authApi.login({ username: 'chotkeo_demo', password: 'Password123!' });
-          const me = await authApi.getMe();
-          if (isMounted) {
-            setUser(me);
-            setIsAuthenticated(true);
+        // Auto login demo account so backend queries work seamlessly if not explicitly logged out
+        if (!loggedOut) {
+          try {
+            await authApi.login({ username: 'chotkeo_demo', password: 'Password123!' });
+            const me = await authApi.getMe();
+            if (isMounted && me) {
+              setUser(me);
+              setIsAuthenticated(true);
+              return;
+            }
+          } catch (loginErr) {
+            if (isMounted) {
+              setUser(null);
+              setIsAuthenticated(false);
+            }
           }
-        } catch (loginErr) {
-          console.warn('[AuthContext] Demo auto-login failed, falling back to mock:', loginErr);
+        } else {
           if (isMounted) {
-            setUser(MOCK_USER);
-            setIsAuthenticated(true);
+            setUser(null);
+            setIsAuthenticated(false);
           }
         }
       } catch (err) {
-        console.warn('[AuthContext] initAuth error:', err);
         if (isMounted) {
-          setUser(MOCK_USER);
-          setIsAuthenticated(true);
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } finally {
         if (isMounted) {
@@ -100,17 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       await secureStorage.deleteItemAsync('userLoggedOut');
-      const session = await authApi.login({ username, password });
-      try {
-        const profile = await authApi.getMe();
-        setUser(profile);
-      } catch {
-        setUser({
-          ...MOCK_USER,
-          id: session?.actor?.id || MOCK_USER.id,
-          displayName: username || MOCK_USER.displayName,
-        });
-      }
+      await authApi.login({ username, password });
+      const profile = await authApi.getMe();
+      setUser(profile);
       setIsAuthenticated(true);
     } finally {
       setIsLoading(false);

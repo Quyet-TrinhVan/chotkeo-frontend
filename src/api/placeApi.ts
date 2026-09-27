@@ -308,6 +308,37 @@ export const placeApi = {
   },
 
   /**
+   * GET /api/v1/collections/{collectionId}/places
+   */
+  async getCollectionPlaces(collectionId: UUID): Promise<PlaceSummary[]> {
+    if (USE_MOCKS) {
+      return [];
+    }
+    const response = await apiClient<ListResponse<PlaceSummary>>(`/collections/${collectionId}/places`, {
+      method: 'GET',
+    });
+    return response.data || [];
+  },
+
+  /**
+   * GET /api/v1/taxonomies
+   */
+  async getTaxonomies(): Promise<{ categories: Array<{ id: string; label: string; code: string }>; styles: Array<{ id: string; label: string; code: string }> }> {
+    if (USE_MOCKS) {
+      return { categories: [], styles: [] };
+    }
+    try {
+      const response = await apiClient<ResourceResponse<any>>('/taxonomies', { method: 'GET' });
+      return {
+        categories: response.data?.categories || [],
+        styles: response.data?.styles || [],
+      };
+    } catch {
+      return { categories: [], styles: [] };
+    }
+  },
+
+  /**
    * POST /api/v1/place-reports
    */
   async reportPlace(payload: PlaceReportCreate): Promise<PlaceReport> {
@@ -319,3 +350,4 @@ export const placeApi = {
     return response.data;
   },
 };
+

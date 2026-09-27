@@ -15,9 +15,12 @@ interface PlaceCardProps {
 export function PlaceCard({ place, onPress, style, compact = false }: PlaceCardProps) {
   const [pressed, setPressed] = useState(false);
 
-  const formatPrice = (min: number, max: number) => {
-    const kMin = Math.round(min / 1000);
-    const kMax = Math.round(max / 1000);
+  const formatPrice = (min?: number, max?: number) => {
+    if (min === undefined && max === undefined) return null;
+    const kMin = min !== undefined ? Math.round(min / 1000) : 0;
+    const kMax = max !== undefined ? Math.round(max / 1000) : 0;
+    if (kMin === 0 && kMax === 0) return 'Miễn phí';
+    if (kMin === kMax) return `${kMin}k/người`;
     return `${kMin}k - ${kMax}k/người`;
   };
 
@@ -26,6 +29,9 @@ export function PlaceCard({ place, onPress, style, compact = false }: PlaceCardP
     if (meters < 1000) return `${meters}m`;
     return `${(meters / 1000).toFixed(1)}km`;
   };
+
+  const imageUrl = place.heroImageUrl || place.heroMedia?.renditions?.[0]?.url;
+  const priceText = formatPrice(place.priceRange?.minAmount, place.priceRange?.maxAmount);
 
   return (
     <Pressable
@@ -42,19 +48,22 @@ export function PlaceCard({ place, onPress, style, compact = false }: PlaceCardP
       accessibilityLabel={`Địa điểm: ${place.name}`}
     >
       <View style={styles.imageContainer}>
-        <Image
-          source={{
-            uri:
-              place.heroImageUrl ||
-              place.heroMedia?.renditions?.[0]?.url ||
-              'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600&q=80',
-          }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-        <View style={styles.statusOverlay}>
-          <StatusBadge status={place.openState} />
-        </View>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.placeholderImageContainer}>
+            <MapPin size={28} color={colors.textMuted} />
+          </View>
+        )}
+        {place.openState && place.openState !== 'UNKNOWN' ? (
+          <View style={styles.statusOverlay}>
+            <StatusBadge status={place.openState} />
+          </View>
+        ) : null}
         {place.distanceMeters ? (
           <View style={styles.distanceBadge}>
             <MapPin size={11} color={colors.textInverse} style={{ marginRight: 2 }} />
@@ -69,11 +78,13 @@ export function PlaceCard({ place, onPress, style, compact = false }: PlaceCardP
         </Text>
 
         <View style={styles.categoryRow}>
-          <Text style={styles.category}>{place.category.label}</Text>
-          <Text style={styles.dotSeparator}>•</Text>
-          <Text style={styles.price}>
-            {formatPrice(place.priceRange.minAmount, place.priceRange.maxAmount)}
-          </Text>
+          <Text style={styles.category}>{place.category?.label || 'Địa điểm'}</Text>
+          {priceText ? (
+            <>
+              <Text style={styles.dotSeparator}>•</Text>
+              <Text style={styles.price}>{priceText}</Text>
+            </>
+          ) : null}
         </View>
 
         {place.styles && place.styles.length > 0 ? (
@@ -119,6 +130,13 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  placeholderImageContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusOverlay: {
     position: 'absolute',

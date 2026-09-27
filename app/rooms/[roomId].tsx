@@ -15,9 +15,9 @@ import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { StatusBadge } from '../../src/components/StatusBadge';
 import { ParticipantAvatarStack } from '../../src/components/ParticipantAvatarStack';
 import { roomApi } from '../../src/api/roomApi';
-import { MOCK_ROOMS } from '../../src/api/mockData';
 import { Room, RoomOption } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
+import { ActivityIndicator } from 'react-native';
 import {
   Users,
   Clock,
@@ -36,11 +36,12 @@ interface RoomDetailScreenProps {
   onBack?: () => void;
 }
 
-export default function RoomDetailScreen({ roomId = 'room-weekend-coffee', onBack }: RoomDetailScreenProps) {
+export default function RoomDetailScreen({ roomId, onBack }: RoomDetailScreenProps) {
   const router = useRouter();
 
-  const initialRoom = MOCK_ROOMS.find((r) => r.id === roomId) || MOCK_ROOMS[0];
-  const [room, setRoom] = useState<Room>(initialRoom);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [ballotModal, setBallotModal] = useState(false);
@@ -48,13 +49,25 @@ export default function RoomDetailScreen({ roomId = 'room-weekend-coffee', onBac
 
   useEffect(() => {
     async function loadRoom() {
+      if (!roomId) {
+        setIsLoading(false);
+        setError('Không tìm thấy thông tin phòng.');
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
       try {
         const data = await roomApi.getRoom(roomId);
         if (data) {
           setRoom(data);
+        } else {
+          setError('Không tìm thấy thông tin phòng.');
         }
       } catch (err) {
-        console.warn('getRoom failed, using fallback:', err);
+        console.warn('getRoom failed:', err);
+        setError('Không tìm thấy thông tin phòng hoặc phòng đã bị xóa.');
+      } finally {
+        setIsLoading(false);
       }
     }
     loadRoom();
@@ -66,13 +79,14 @@ export default function RoomDetailScreen({ roomId = 'room-weekend-coffee', onBac
   };
 
   const handleOpenVoting = async () => {
+    if (!room) return;
     const updated = await roomApi.openRoom(room.id);
     setRoom({ ...updated });
     showToast('Đã mở bình chọn cho phòng kèo!');
   };
 
   const handleSubmitVote = async () => {
-    if (!selectedOptionId) return;
+    if (!room || !selectedOptionId) return;
     await roomApi.submitVote(room.id, {
       optionIds: [selectedOptionId],
       ballotVersion: room.votingRoundVersion,
@@ -90,8 +104,29 @@ export default function RoomDetailScreen({ roomId = 'room-weekend-coffee', onBac
     }
   };
 
-  const isOwner = true; // In mock MVP, actor has owner controls
-  const winningOption = room.options[0]; // Example winner when closed
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: spacing.md, color: colors.textSecondary }}>Đang tải thông tin phòng...</Text>
+      </View>
+    );
+  }
+
+  if (error || !room) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: spacing.xl }]}>
+        <AlertCircle size={48} color={colors.warning} />
+        <Text style={[styles.ballotTitle, { marginTop: spacing.md, textAlign: 'center' }]}>
+          {error || 'Không tìm thấy phòng'}
+        </Text>
+        <PrimaryButton title="Quay lại" onPress={handleBack} style={{ marginTop: spacing.lg }} />
+      </View>
+    );
+  }
+
+  const isOwner = true; // Owner controls based on permissions
+  const winningOption = room.options?.[0];
 
   return (
     <View style={styles.container}>
