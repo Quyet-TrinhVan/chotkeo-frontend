@@ -1,11 +1,16 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import MapView, { Region } from 'react-native-maps';
-import * as Location from 'expo-location';
 import { placeApi } from '../../../api/placeApi';
 import { MapCluster, PlaceDetail } from '../../../types/api';
 import { useMapViewport } from './useMapViewport';
 import { MapArea, STANDARD_HANOI_AREAS, HANOI_DEFAULT_REGION } from '../types';
+import { requestCurrentLocation, openAppSettings } from '../../../services/locationService';
+
+export interface LocationNotice {
+  message: string;
+  canOpenSettings: boolean;
+}
 
 export interface MapFilters {
   categoryIds?: string[];
@@ -26,7 +31,17 @@ export function usePlaceMap({ filters, onSelectPlace }: UsePlaceMapOptions = {})
   const [selectedAreaId, setSelectedAreaId] = useState<string>('area-all');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [hasLocationPermission, setHasLocationPermission] = useState<boolean>(false);
+  const [locationNotice, setLocationNotice] = useState<LocationNotice | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissLocationNotice = useCallback(() => {
+    setLocationNotice(null);
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = null;
+    }
+  }, []);
 
   const {
     region,
@@ -154,21 +169,27 @@ export function usePlaceMap({ filters, onSelectPlace }: UsePlaceMapOptions = {})
   // Current user location
   const handleLocateMe = useCallback(async () => {
     setIsLocating(true);
-    setLocationError(null);
+    dismissLocationNotice();
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationError('Không được cấp quyền vị trí.');
+      const result = await requestCurrentLocation();
+      if (!result.success) {
+        setLocationNotice({
+          message: result.message,
+          canOpenSettings: result.canOpenSettings,
+        });
+        if (noticeTimerRef.current) {
+          clearTimeout(noticeTimerRef.current);
+        }
+        noticeTimerRef.current = setTimeout(() => {
+          setLocationNotice(null);
+        }, 6000);
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
+      setHasLocationPermission(true);
       const userRegion: Region = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
+        latitude: result.coords.latitude,
+        longitude: result.coords.longitude,
         latitudeDelta: 0.02,
         longitudeDelta: 0.02,
       };
@@ -177,11 +198,14 @@ export function usePlaceMap({ filters, onSelectPlace }: UsePlaceMapOptions = {})
       setViewport(userRegion);
     } catch (err) {
       console.warn('Location lookup failed:', err);
-      setLocationError('Không xác định được vị trí.');
+      setLocationNotice({
+        message: 'Không thể lấy vị trí hiện tại. Vui lòng thử lại.',
+        canOpenSettings: false,
+      });
     } finally {
       setIsLocating(false);
     }
-  }, [setViewport]);
+  }, [dismissLocationNotice, setViewport]);
 
   return {
     mapRef,
@@ -199,7 +223,10 @@ export function usePlaceMap({ filters, onSelectPlace }: UsePlaceMapOptions = {})
     selectedPlaceDetail: placeDetailQuery.data,
     isLoadingPlaceDetail: placeDetailQuery.isLoading,
     isLocating,
-    locationError,
+    hasLocationPermission,
+    locationNotice,
+    dismissLocationNotice,
+    openAppSettings,
     onRegionChange,
     onRegionChangeComplete,
     handleClusterPress,

@@ -57,6 +57,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Cho phép Chốt Kèo sử dụng vị trí của bạn để tìm và hiển thị các địa điểm gần bạn.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

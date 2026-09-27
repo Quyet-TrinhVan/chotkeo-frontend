@@ -30,6 +30,14 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Cho phép Chốt Kèo sử dụng vị trí của bạn để tìm và hiển thị các địa điểm gần bạn."
+        }
+      ]
+    ]
   }
 }

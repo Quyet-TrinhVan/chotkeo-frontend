@@ -14,7 +14,7 @@ import { PlaceMapMarker } from './PlaceMapMarker';
 import { MapControls } from './MapControls';
 import { AreaSelector } from './AreaSelector';
 import { MapPlacePreview } from './MapPlacePreview';
-import { AlertCircle, RefreshCw } from 'lucide-react-native';
+import { AlertCircle, RefreshCw, X } from 'lucide-react-native';
 
 interface PlaceMapProps {
   filters?: MapFilters;
@@ -35,7 +35,10 @@ export function PlaceMap({ filters, onSelectPlace, style }: PlaceMapProps) {
     selectedPlaceDetail,
     isLoadingPlaceDetail,
     isLocating,
-    locationError,
+    hasLocationPermission,
+    locationNotice,
+    dismissLocationNotice,
+    openAppSettings,
     onRegionChange,
     onRegionChangeComplete,
     handleClusterPress,
@@ -57,7 +60,7 @@ export function PlaceMap({ filters, onSelectPlace, style }: PlaceMapProps) {
         initialRegion={region}
         onRegionChange={onRegionChange}
         onRegionChangeComplete={onRegionChangeComplete}
-        showsUserLocation
+        showsUserLocation={hasLocationPermission}
         showsMyLocationButton={false}
         showsCompass={false}
         showsScale={false}
@@ -122,10 +125,28 @@ export function PlaceMap({ filters, onSelectPlace, style }: PlaceMapProps) {
         </View>
       ) : null}
 
-      {/* Location Error Notice */}
-      {locationError ? (
-        <View style={styles.noticePill} pointerEvents="none">
-          <Text style={styles.noticeText}>{locationError}</Text>
+      {/* Location Notice (Denied, Blocked, Error) */}
+      {locationNotice ? (
+        <View style={styles.noticePill}>
+          <Text style={styles.noticeText}>{locationNotice.message}</Text>
+          {locationNotice.canOpenSettings ? (
+            <Pressable
+              onPress={openAppSettings}
+              style={styles.noticeActionBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Mở Cài đặt"
+            >
+              <Text style={styles.noticeActionText}>Cài đặt</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={dismissLocationNotice}
+            style={styles.noticeCloseBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Đóng thông báo"
+          >
+            <X size={14} color="#FFFFFF" />
+          </Pressable>
         </View>
       ) : null}
 
@@ -217,16 +238,43 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 56,
     alignSelf: 'center',
-    backgroundColor: 'rgba(23, 23, 23, 0.85)',
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(23, 23, 23, 0.90)',
+    paddingLeft: 14,
+    paddingRight: 8,
     paddingVertical: 7,
     borderRadius: radius.pill,
-    zIndex: 15,
+    zIndex: 25,
+    maxWidth: '92%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 5,
   },
   noticeText: {
     ...typography.caption,
     fontSize: 12,
     color: '#FFFFFF',
+    flexShrink: 1,
+  },
+  noticeActionBtn: {
+    marginLeft: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  noticeActionText: {
+    ...typography.captionMedium,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  noticeCloseBtn: {
+    marginLeft: 4,
+    padding: 3,
   },
   emptyPill: {
     position: 'absolute',
