@@ -180,15 +180,21 @@ PODS:
     - Yoga
   - ExpoAsset (57.0.18):
     - ExpoModulesCore
+  - ExpoCrypto (57.0.3):
+    - ExpoModulesCore
   - ExpoDomWebView (57.0.1):
     - ExpoModulesCore
   - ExpoFileSystem (57.0.7):
     - ExpoModulesCore
   - ExpoFont (57.0.4):
     - ExpoModulesCore
+  - ExpoImagePicker (57.0.20):
+    - ExpoModulesCore
   - ExpoKeepAwake (57.0.2):
     - ExpoModulesCore
   - ExpoLinking (57.0.11):
+    - ExpoModulesCore
+  - ExpoLocation (57.0.20):
     - ExpoModulesCore
   - ExpoLogBox (57.0.4):
     - React-Core
@@ -1653,6 +1659,53 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-maps (1.27.2):
+    - react-native-maps/Maps (= 1.27.2)
+  - react-native-maps/Generated (1.27.2):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - react-native-maps/Maps (1.27.2):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-maps/Generated
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
     - RCTRequired
@@ -2223,11 +2276,14 @@ DEPENDENCIES:
   - expo-dev-menu (from `../node_modules/expo-dev-menu`)
   - expo-dev-menu-interface (from `../node_modules/expo-dev-menu-interface/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios/ExpoFileSystem.podspec`)
   - ExpoFont (from `../node_modules/expo-font/ios/ExpoFont.podspec`)
+  - ExpoImagePicker (from `../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
+  - ExpoLocation (from `../node_modules/expo-location/ios/ExpoLocation.podspec`)
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
   - ExpoModulesCore (from `../node_modules/expo-modules-core/ExpoModulesCore.podspec`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-jsi/apple`)
@@ -2274,6 +2330,7 @@ DEPENDENCIES:
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - React-mutationobservernativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)
+  - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
@@ -2333,16 +2390,22 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoCrypto:
+    :path: "../node_modules/expo-crypto/ios"
   ExpoDomWebView:
     :path: "../node_modules/@expo/dom-webview/ios"
   ExpoFileSystem:
     :podspec: "../node_modules/expo-file-system/ios/ExpoFileSystem.podspec"
   ExpoFont:
     :podspec: "../node_modules/expo-font/ios/ExpoFont.podspec"
+  ExpoImagePicker:
+    :path: "../node_modules/expo-image-picker/ios"
   ExpoKeepAwake:
     :path: "../node_modules/expo-keep-awake/ios"
   ExpoLinking:
     :path: "../node_modules/expo-linking/ios"
+  ExpoLocation:
+    :podspec: "../node_modules/expo-location/ios/ExpoLocation.podspec"
   ExpoLogBox:
     :path: "../node_modules/@expo/log-box"
   ExpoModulesCore:
@@ -2434,6 +2497,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   React-mutationobservernativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
+  react-native-maps:
+    :path: "../node_modules/react-native-maps"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   React-NativeModulesApple:
@@ -2523,11 +2588,14 @@ SPEC CHECKSUMS:
   expo-dev-menu: 272e23ced973a0e401c2b9a679595ea6c7c05d78
   expo-dev-menu-interface: 7a59e803916fbfd1b96c75ff91ea8dddac7e722f
   ExpoAsset: a917b756b2e4fe12cef1ac3bca5fd849ddb2b919
+  ExpoCrypto: 3ba3d7fcf244a3ae8cb888c5759e0db70ecc236d
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
   ExpoFileSystem: 28778f942725170102f7c6cf4dee05a526ddacd0
   ExpoFont: f8198a952ba2ff53c9b393b5269ea435f232cfc3
+  ExpoImagePicker: 661e13a7616fbcea630cfb9409b7483094978e02
   ExpoKeepAwake: 72af0b3be3615e59bc819d26061ff4e06b155ee0
   ExpoLinking: 52819633a2225a0c2a3cd3de64056b021bb55202
+  ExpoLocation: 52c126a493087ac247cf213ef9f737c5b298c1d4
   ExpoLogBox: 80957303325cd4439137765c90a87d7f22aaf2ff
   ExpoModulesCore: 1283768ebcf9235471d302877617e95d9c2cd781
   ExpoModulesJSI: 383849017851b1ebacbd78cfaa32b18b6152585e
@@ -2573,6 +2641,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: 3c805ea54675b00ef1755f23b3c1fccf34962b93
   React-microtasksnativemodule: 97a771dbbb4315c71579995b53e4e3e351a99d89
   React-mutationobservernativemodule: 530bff1bba9511a5133e3cf8170e3b2c0df49e89
+  react-native-maps: cb32168a32e30f83beb08198325ff96b70dd5c9f
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
   React-NativeModulesApple: 2b658272ca69df0694cf5d54f9510aa7c33977bc
   React-networking: 6be0b80e18e710dd30e77b04838ec46666a7bb78

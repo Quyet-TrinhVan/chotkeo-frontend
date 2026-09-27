@@ -15,7 +15,8 @@ import { EmptyState } from '../../../src/components/EmptyState';
 import { placeApi } from '../../../src/api/placeApi';
 import { useRouter } from '../../../src/navigation/router';
 import { PlaceSummary, SearchSuggestion } from '../../../src/types/api';
-import { List, Map as MapIcon, SlidersHorizontal, MapPin, Sparkles, Navigation } from 'lucide-react-native';
+import { PlaceMap } from '../../../src/features/map';
+import { List, Map as MapIcon, MapPin, Sparkles } from 'lucide-react-native';
 
 interface SearchScreenProps {
   onSelectPlace?: (placeId: string) => void;
@@ -27,9 +28,8 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('cat-all');
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [onlyOpen, setOnlyOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('map');
   const [places, setPlaces] = useState<PlaceSummary[]>([]);
-  const [selectedMapPlace, setSelectedMapPlace] = useState<PlaceSummary | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [categories, setCategories] = useState<Array<{ id: string; label: string }>>([
@@ -69,18 +69,11 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
           pageSize: 50,
         });
         if (active) {
-          const list = res.places || [];
-          setPlaces(list);
-          if (list.length > 0) {
-            setSelectedMapPlace(list[0]);
-          } else {
-            setSelectedMapPlace(null);
-          }
+          setPlaces(res.places || []);
         }
       } catch (err) {
         if (active) {
           setPlaces([]);
-          setSelectedMapPlace(null);
         }
       }
     }
@@ -271,69 +264,17 @@ export default function SearchScreen({ onSelectPlace }: SearchScreenProps) {
           <View style={{ height: 30 }} />
         </ScrollView>
       ) : (
-        /* Map View with bottom preview card */
-        <View style={styles.mapContainer}>
-          {/* Simulated Map Canvas */}
-          <View style={styles.simulatedMap}>
-            {/* Grid styling to look like a clean modern map */}
-            <View style={styles.mapRoadH} />
-            <View style={styles.mapRoadV} />
-            <View style={styles.mapLake}>
-              <Text style={styles.mapLakeText}>Hồ Hoàn Kiếm</Text>
-            </View>
-
-            {/* Map Markers for places */}
-            {filteredPlaces.slice(0, 6).map((place, idx) => {
-              const isSelected = selectedMapPlace?.id === place.id;
-              // spread markers organically
-              const positions = [
-                { top: '25%', left: '22%' },
-                { top: '38%', left: '55%' },
-                { top: '60%', left: '30%' },
-                { top: '48%', left: '78%' },
-                { top: '18%', left: '68%' },
-                { top: '68%', left: '62%' },
-              ];
-              const pos = positions[idx % positions.length];
-
-              return (
-                <Pressable
-                  key={place.id}
-                  onPress={() => setSelectedMapPlace(place)}
-                  style={[
-                    styles.mapMarker,
-                    pos as any,
-                    isSelected && styles.mapMarkerSelected,
-                  ]}
-                >
-                  <MapPin
-                    size={isSelected ? 22 : 16}
-                    color={isSelected ? colors.textInverse : colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.mapMarkerLabel,
-                      isSelected && styles.mapMarkerLabelSelected,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {place.name.split('-')[0].trim()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Bottom Floating Place Preview Card */}
-          {selectedMapPlace ? (
-            <View style={styles.bottomMapCardWrap}>
-              <PlaceCardHorizontal
-                place={selectedMapPlace}
-                onPress={() => handlePlacePress(selectedMapPlace.id)}
-              />
-            </View>
-          ) : null}
-        </View>
+        /* Real Interactive Native Map */
+        <PlaceMap
+          filters={{
+            categoryIds: selectedCategory !== 'cat-all' ? [selectedCategory] : undefined,
+            styleIds: selectedStyle ? [selectedStyle] : undefined,
+            onlyOpen,
+            q: searchText.trim() || undefined,
+          }}
+          onSelectPlace={handlePlacePress}
+          style={styles.mapContainer}
+        />
       )}
     </View>
   );
@@ -431,80 +372,5 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     position: 'relative',
-  },
-  simulatedMap: {
-    flex: 1,
-    backgroundColor: '#F3EFE9',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  mapRoadH: {
-    position: 'absolute',
-    top: '45%',
-    left: 0,
-    right: 0,
-    height: 14,
-    backgroundColor: '#E5DFD5',
-  },
-  mapRoadV: {
-    position: 'absolute',
-    left: '48%',
-    top: 0,
-    bottom: 0,
-    width: 14,
-    backgroundColor: '#E5DFD5',
-  },
-  mapLake: {
-    position: 'absolute',
-    top: '32%',
-    left: '35%',
-    width: 120,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#C7E4F9',
-    borderWidth: 2,
-    borderColor: '#B0D8F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapLakeText: {
-    ...typography.captionMedium,
-    color: '#0369A1',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  mapMarker: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
-  mapMarkerSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.surface,
-    transform: [{ scale: 1.1 }],
-    zIndex: 50,
-  },
-  mapMarkerLabel: {
-    ...typography.captionMedium,
-    fontSize: 11,
-    color: colors.textPrimary,
-    marginLeft: 4,
-    fontWeight: '600',
-    maxWidth: 90,
-  },
-  mapMarkerLabelSelected: {
-    color: colors.textInverse,
-  },
-  bottomMapCardWrap: {
-    position: 'absolute',
-    bottom: spacing.md,
-    left: spacing.md,
-    right: spacing.md,
   },
 });

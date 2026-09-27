@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar, Platform, ActivityIndicator } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
@@ -29,9 +29,21 @@ const queryClient = new QueryClient({
 function AppNavigator() {
   const { pathname, params, push, replace, back } = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>('index');
+  const [activeTab, setActiveTab] = useState<TabKey>('search');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+
+  useEffect(() => {
+    if (pathname === '/search' || pathname === '/(app)/(tabs)/search') {
+      setActiveTab('search');
+    } else if (pathname === '/rooms' || pathname === '/(app)/(tabs)/rooms') {
+      setActiveTab('rooms');
+    } else if (pathname === '/profile' || pathname === '/(app)/(tabs)/profile') {
+      setActiveTab('profile');
+    } else if (pathname === '/' || pathname === '/index' || pathname === '/(app)/(tabs)/index') {
+      setActiveTab('index');
+    }
+  }, [pathname]);
 
   // Auth routes (never unmounted during submit or loading)
   if (pathname === '/(auth)/login') {
