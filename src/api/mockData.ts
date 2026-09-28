@@ -3,33 +3,7 @@
  * Realistic Hanoi Places, Categories, Styles, Rooms according to API spec v1.1
  */
 
-import { PlaceSummary, PlaceDetail, Room, UserProfile, SearchSuggestion } from '../types/api';
-
-export const MOCK_USER: UserProfile = {
-  id: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
-  displayName: 'Minh Hoàng',
-  locale: 'vi-VN',
-  timeZone: 'Asia/Ho_Chi_Minh',
-  profileState: 'ACTIVE',
-  createdAt: '2026-09-01T08:00:00Z',
-  updatedAt: '2026-09-20T10:30:00Z',
-  version: 1,
-  avatar: {
-    id: '0199f2b8-90b4-76e2-b05a-8be3bb3d82b2',
-    status: 'READY',
-    contentType: 'image/jpeg',
-    sizeBytes: 154200,
-    sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    moderationStatus: 'APPROVED',
-    renditions: [
-      {
-        kind: 'ORIGINAL',
-        url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80',
-        expiresAt: '2026-10-01T00:00:00Z',
-      },
-    ],
-  },
-};
+import { PlaceSummary, PlaceDetail, Room, SearchSuggestion } from '../types/api';
 
 export const MOCK_CATEGORIES = [
   { id: 'cat-all', code: 'all', label: 'Tất cả' },
@@ -324,7 +298,7 @@ export const MOCK_PLACE_DETAILS: Record<string, PlaceDetail> = {
 export const MOCK_ROOMS: Room[] = [
   {
     id: 'room-weekend-coffee',
-    ownerActorId: MOCK_USER.id,
+    ownerActorId: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
     status: 'OPEN',
     title: 'Kèo Cafe Cuối Tuần Này Nhé ☕',
     options: [
@@ -332,14 +306,14 @@ export const MOCK_ROOMS: Room[] = [
         id: 'opt-1',
         placeSnapshot: MOCK_PLACES[0], // Cafe Giảng
         sourceType: 'RECOMMENDATION_SESSION',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 1,
       },
       {
         id: 'opt-2',
         placeSnapshot: MOCK_PLACES[3], // All Day Coffee
         sourceType: 'MANUAL',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 2,
       },
       {
@@ -408,7 +382,7 @@ export const MOCK_ROOMS: Room[] = [
   },
   {
     id: 'room-draft-hanoi',
-    ownerActorId: MOCK_USER.id,
+    ownerActorId: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
     status: 'DRAFT',
     title: 'Lên kèo Hồ Tây Chill',
     options: [
@@ -416,14 +390,14 @@ export const MOCK_ROOMS: Room[] = [
         id: 'opt-7',
         placeSnapshot: MOCK_PLACES[4], // Standing Bar
         sourceType: 'MANUAL',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 1,
       },
       {
         id: 'opt-8',
         placeSnapshot: MOCK_PLACES[3], // All Day Coffee
         sourceType: 'MANUAL',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 2,
       },
     ],
@@ -443,7 +417,7 @@ export const MOCK_ROOMS: Room[] = [
   },
   {
     id: 'room-closed-phoco',
-    ownerActorId: MOCK_USER.id,
+    ownerActorId: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
     status: 'CLOSED',
     title: 'Chốt kèo ăn đêm thứ Sáu trước',
     options: [
@@ -451,14 +425,14 @@ export const MOCK_ROOMS: Room[] = [
         id: 'opt-9',
         placeSnapshot: MOCK_PLACES[1],
         sourceType: 'MANUAL',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 1,
       },
       {
         id: 'opt-10',
         placeSnapshot: MOCK_PLACES[5],
         sourceType: 'MANUAL',
-        addedBy: MOCK_USER.id,
+        addedBy: '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301',
         position: 2,
       },
     ],

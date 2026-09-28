@@ -17,7 +17,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import { Camera } from 'lucide-react-native';
+import { Camera, User } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '../../../theme/tokens';
 
 export interface ProfileAvatarProps {
@@ -29,9 +29,6 @@ export interface ProfileAvatarProps {
   size?: number;
 }
 
-const DEFAULT_AVATAR =
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80';
-
 export function ProfileAvatar({
   avatarUrl,
   previewUri,
@@ -40,18 +37,30 @@ export function ProfileAvatar({
   onPressCamera,
   size = 96,
 }: ProfileAvatarProps) {
-  const displayUri = previewUri || avatarUrl || DEFAULT_AVATAR;
+  const displayUri = previewUri || avatarUrl;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
-      {/* Avatar Image */}
-      <Image
-        source={{ uri: displayUri }}
-        style={[
-          styles.image,
-          { width: size, height: size, borderRadius: size / 2 },
-        ]}
-      />
+      {/* Avatar Image or Neutral User Placeholder */}
+      {displayUri ? (
+        <Image
+          source={{ uri: displayUri }}
+          style={[
+            styles.image,
+            { width: size, height: size, borderRadius: size / 2 },
+          ]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.image,
+            styles.placeholder,
+            { width: size, height: size, borderRadius: size / 2 },
+          ]}
+        >
+          <User size={Math.round(size * 0.45)} color={colors.textSecondary} />
+        </View>
+      )}
 
       {/* Uploading Overlay */}
       {isUploading && (
@@ -96,6 +105,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     borderWidth: 3,
     borderColor: colors.surface,
+  },
+  placeholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingOverlay: {
     position: 'absolute',

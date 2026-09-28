@@ -28,7 +28,7 @@ const queryClient = new QueryClient({
 
 function AppNavigator() {
   const { pathname, params, push, replace, back } = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, authStatus } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('index');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
@@ -40,20 +40,13 @@ function AppNavigator() {
       setActiveTab('rooms');
     } else if (pathname === '/profile' || pathname === '/(app)/(tabs)/profile') {
       setActiveTab('profile');
-    } else if (pathname === '/' || pathname === '/index' || pathname === '/(app)/(tabs)/index') {
+    } else if (pathname === '/' || pathname === '/index' || pathname === '/(app)/(tabs)/index' || pathname === '/(app)/(tabs)') {
       setActiveTab('index');
     }
   }, [pathname]);
 
-  // Auth routes (never unmounted during submit or loading)
-  if (pathname === '/(auth)/login') {
-    return <LoginScreen />;
-  }
-  if (pathname === '/(auth)/register') {
-    return <RegisterScreen />;
-  }
-
-  if (isLoading) {
+  // 1. Splash / Loading while restoring auth session
+  if (isLoading || authStatus === 'loading') {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -61,9 +54,46 @@ function AppNavigator() {
     );
   }
 
-  // Route routing logic
-  if (!isAuthenticated && !pathname.startsWith('/(auth)')) {
+  // 2. Unauthenticated Guard: Only Login or Register stack allowed
+  if (!isAuthenticated) {
+    if (pathname === '/(auth)/register') {
+      return <RegisterScreen />;
+    }
     return <LoginScreen />;
+  }
+
+  // 3. Authenticated: if pathname is still an auth route, show main tabs
+  if (pathname.startsWith('/(auth)')) {
+    return (
+      <TabsLayout activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)}>
+        {activeTab === 'index' && (
+          <HomeScreen
+            onSelectPlace={(id) => {
+              setSelectedPlaceId(id);
+              push(`/places/${id}`);
+            }}
+          />
+        )}
+        {activeTab === 'search' && (
+          <SearchScreen
+            onSelectPlace={(id) => {
+              setSelectedPlaceId(id);
+              push(`/places/${id}`);
+            }}
+          />
+        )}
+        {activeTab === 'rooms' && (
+          <RoomsScreen
+            onSelectRoom={(id) => {
+              setSelectedRoomId(id);
+              push(`/rooms/${id}`);
+            }}
+            onCreateRoom={() => push('/rooms/create')}
+          />
+        )}
+        {activeTab === 'profile' && <ProfileScreen />}
+      </TabsLayout>
+    );
   }
 
   // Nested modal / detail routes
@@ -128,7 +158,8 @@ function AppNavigator() {
 
 function NavigationWrapper() {
   const { pathname } = useRouter();
-  const isAuth = pathname.startsWith('/(auth)');
+  const { isAuthenticated, isLoading, authStatus } = useAuth();
+  const isAuth = isLoading || authStatus === 'loading' || !isAuthenticated || pathname.startsWith('/(auth)');
   return (
     <View style={[styles.rootContainer, isAuth && { backgroundColor: '#FFFFFF' }]}>
       <StatusBar barStyle="dark-content" />

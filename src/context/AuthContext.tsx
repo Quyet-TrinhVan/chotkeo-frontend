@@ -8,10 +8,13 @@ import { UserProfile, RegisterRequest } from '../types/api';
 import { authApi } from '../api/authApi';
 import { secureStorage } from '../utils/storage';
 
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
 export interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authStatus: AuthStatus;
   login: (username: string, password: string) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -25,6 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const authStatus: AuthStatus = isLoading
+    ? 'loading'
+    : isAuthenticated
+    ? 'authenticated'
+    : 'unauthenticated';
 
   const refreshProfile = async () => {
     try {
@@ -43,41 +52,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initAuth() {
       try {
+        // Purge any legacy mock user data or mock tokens from local storage
+        const cachedUser = await secureStorage.getItemAsync('currentUser');
+        if (cachedUser && (cachedUser.includes('Minh Hoàng') || cachedUser.includes('mock-'))) {
+          await secureStorage.deleteItemAsync('currentUser');
+          await secureStorage.deleteItemAsync('accessToken');
+          await secureStorage.deleteItemAsync('refreshToken');
+        }
+
         const loggedOut = await secureStorage.getItemAsync('userLoggedOut');
         const token = await secureStorage.getItemAsync('accessToken');
 
-        if (!loggedOut && token && !token.startsWith('mock-')) {
-          try {
-            const me = await authApi.getMe();
-            if (isMounted && me) {
-              setUser(me);
-              setIsAuthenticated(true);
-              return;
-            }
-          } catch {
-            await secureStorage.deleteItemAsync('accessToken');
-            await secureStorage.deleteItemAsync('refreshToken');
-            await secureStorage.deleteItemAsync('currentUser');
+        // If explicitly logged out or no token, or invalid mock token -> unauthenticated
+        if (loggedOut === 'true' || !token || token.startsWith('mock-')) {
+          await secureStorage.deleteItemAsync('accessToken');
+          await secureStorage.deleteItemAsync('refreshToken');
+          await secureStorage.deleteItemAsync('currentUser');
+          if (isMounted) {
+            setUser(null);
+            setIsAuthenticated(false);
           }
+          return;
         }
 
-        // Auto login demo account so backend queries work seamlessly if not explicitly logged out
-        if (!loggedOut) {
-          try {
-            await authApi.login({ username: 'chotkeo_demo', password: 'Password123!' });
-            const me = await authApi.getMe();
-            if (isMounted && me) {
-              setUser(me);
-              setIsAuthenticated(true);
-              return;
-            }
-          } catch (loginErr) {
-            if (isMounted) {
-              setUser(null);
-              setIsAuthenticated(false);
-            }
+        // Validate session with backend
+        try {
+          const me = await authApi.getMe();
+          if (isMounted && me) {
+            setUser(me);
+            setIsAuthenticated(true);
+            return;
           }
-        } else {
+        } catch {
+          // Token invalid or expired
+          await secureStorage.deleteItemAsync('accessToken');
+          await secureStorage.deleteItemAsync('refreshToken');
+          await secureStorage.deleteItemAsync('currentUser');
           if (isMounted) {
             setUser(null);
             setIsAuthenticated(false);
@@ -165,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated,
         isLoading,
+        authStatus,
         login,
         register,
         logout,

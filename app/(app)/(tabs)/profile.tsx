@@ -83,9 +83,7 @@ export default function ProfileScreen() {
     router.replace('/(auth)/login');
   };
 
-  const avatarUrl =
-    user?.avatar?.renditions?.[0]?.url ||
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80';
+  const avatarUrl = user?.avatar?.renditions?.[0]?.url || null;
 
   return (
     <ScrollView
@@ -97,7 +95,7 @@ export default function ProfileScreen() {
       <View style={styles.profileCard}>
         <View style={styles.avatarWrap}>
           <ProfileAvatar
-            avatarUrl={user?.avatar?.renditions?.[0]?.url}
+            avatarUrl={avatarUrl}
             previewUri={previewUri}
             isUploading={isUploading}
             uploadMessage={uploadMessage}

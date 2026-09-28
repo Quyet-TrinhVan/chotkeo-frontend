@@ -13,7 +13,6 @@ import {
   ResourceResponse,
 } from '../types/api';
 import { secureStorage } from '../utils/storage';
-import { MOCK_USER } from './mockData';
 
 export const authApi = {
   /**
@@ -25,6 +24,7 @@ export const authApi = {
       if (!credentials.username || !credentials.password) {
         throw new Error('Vui lòng nhập tài khoản và mật khẩu');
       }
+      const userId = '0199f2b8-7b11-7c41-8d7a-2a7b0c9e1301';
       const mockSession: SessionTokenPair = {
         accessToken: `mock-jwt-token-${Date.now()}`,
         expiresIn: 3600,
@@ -32,14 +32,25 @@ export const authApi = {
         refreshExpiresIn: 86400 * 30,
         tokenType: 'Bearer',
         actor: {
-          id: MOCK_USER.id,
+          id: userId,
           type: 'USER',
           permissions: ['ROOM_CREATE', 'VOTE', 'RECOMMENDATION', 'RANDOM_DRAW'],
         },
       };
+      const userProfile: UserProfile = {
+        id: userId,
+        displayName: credentials.username || 'Người dùng',
+        locale: 'vi-VN',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        profileState: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+        avatar: null,
+      };
       await secureStorage.setItemAsync('accessToken', mockSession.accessToken);
       await secureStorage.setItemAsync('refreshToken', mockSession.refreshToken);
-      await secureStorage.setItemAsync('currentUser', JSON.stringify(MOCK_USER));
+      await secureStorage.setItemAsync('currentUser', JSON.stringify(userProfile));
       return mockSession;
     }
 
@@ -159,10 +170,10 @@ export const authApi = {
         try {
           return JSON.parse(userJson);
         } catch {
-          return MOCK_USER;
+          // corrupted json
         }
       }
-      return MOCK_USER;
+      throw new Error('Chưa đăng nhập');
     }
 
     const response = await apiClient<ResourceResponse<UserProfile>>('/me', {

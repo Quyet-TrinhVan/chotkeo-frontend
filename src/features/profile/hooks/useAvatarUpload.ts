@@ -11,7 +11,8 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -19,15 +20,6 @@ import {
   UploadStepStatus,
 } from '../services/avatarUploadService';
 import { validateAvatarFile } from '../utils/fileValidation';
-
-// Safely resolve ImagePicker native module
-let ImagePicker: any = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  ImagePicker = require('expo-image-picker');
-} catch {
-  console.warn('[useAvatarUpload] Native module expo-image-picker not found in this client binary.');
-}
 
 export interface UseAvatarUploadReturn {
   isUploading: boolean;
@@ -130,36 +122,53 @@ export function useAvatarUpload(): UseAvatarUploadReturn {
 
     try {
       if (!ImagePicker?.requestMediaLibraryPermissionsAsync) {
-        return await processAssetUpload({
-          uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=80',
-          fileName: 'avatar_sample.jpg',
-          mimeType: 'image/jpeg',
-          fileSize: 120000,
-          width: 500,
-          height: 500,
-        });
+        setError('Không thể mở thư viện ảnh. Vui lòng thử lại.');
+        return false;
       }
 
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError('Bạn cần cấp quyền truy cập ảnh để đổi ảnh đại diện.');
+        if (!permission.canAskAgain) {
+          Alert.alert(
+            'Quyền truy cập thư viện ảnh',
+            'Chốt Kèo cần quyền truy cập thư viện ảnh để bạn chọn ảnh đại diện. Vui lòng cấp quyền trong Cài đặt thiết bị.',
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Mở Cài đặt',
+                onPress: () => {
+                  Linking.openSettings().catch((err) => {
+                    console.warn('[useAvatarUpload] Failed to open settings:', err);
+                  });
+                },
+              },
+            ]
+          );
+        }
+        setError('Chốt Kèo cần quyền truy cập thư viện ảnh để bạn chọn ảnh đại diện.');
         return false;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.9,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return false;
       }
 
-      return await processAssetUpload(result.assets[0]);
-    } catch (err: any) {
-      setError(err?.message || 'Không thể mở thư viện ảnh.');
+      const selectedAsset = result.assets[0];
+      if (!selectedAsset?.uri) {
+        return false;
+      }
+
+      return await processAssetUpload(selectedAsset);
+    } catch (err: unknown) {
+      console.warn('[useAvatarUpload] pickImageFromLibrary failed:', err);
+      setError('Không thể mở thư viện ảnh. Vui lòng thử lại.');
       return false;
     }
   }, [processAssetUpload, clearError, clearToast]);
@@ -175,36 +184,53 @@ export function useAvatarUpload(): UseAvatarUploadReturn {
 
     try {
       if (!ImagePicker?.requestCameraPermissionsAsync) {
-        return await processAssetUpload({
-          uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500&q=80',
-          fileName: 'camera_capture.jpg',
-          mimeType: 'image/jpeg',
-          fileSize: 135000,
-          width: 500,
-          height: 500,
-        });
+        setError('Không thể mở camera. Vui lòng thử lại.');
+        return false;
       }
 
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        setError('Bạn cần cấp quyền camera để chụp ảnh.');
+        if (!permission.canAskAgain) {
+          Alert.alert(
+            'Quyền sử dụng máy ảnh',
+            'Chốt Kèo cần quyền sử dụng camera để bạn chụp ảnh đại diện. Vui lòng cấp quyền trong Cài đặt thiết bị.',
+            [
+              { text: 'Hủy', style: 'cancel' },
+              {
+                text: 'Mở Cài đặt',
+                onPress: () => {
+                  Linking.openSettings().catch((err) => {
+                    console.warn('[useAvatarUpload] Failed to open settings:', err);
+                  });
+                },
+              },
+            ]
+          );
+        }
+        setError('Chốt Kèo cần quyền sử dụng camera để bạn chụp ảnh đại diện.');
         return false;
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.9,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return false;
       }
 
-      return await processAssetUpload(result.assets[0]);
-    } catch (err: any) {
-      setError(err?.message || 'Không thể mở máy ảnh.');
+      const capturedAsset = result.assets[0];
+      if (!capturedAsset?.uri) {
+        return false;
+      }
+
+      return await processAssetUpload(capturedAsset);
+    } catch (err: unknown) {
+      console.warn('[useAvatarUpload] takePhotoWithCamera failed:', err);
+      setError('Không thể mở camera. Vui lòng thử lại.');
       return false;
     }
   }, [processAssetUpload, clearError, clearToast]);
