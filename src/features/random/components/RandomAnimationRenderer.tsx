@@ -4,6 +4,7 @@ import { RandomAnimationStyle } from '../types';
 import { CsgoRandomAnimation } from '../animations/CsgoRandomAnimation';
 import { RocketRandomAnimation } from '../animations/RocketRandomAnimation';
 import { SlotMachineRandomAnimation } from '../animations/SlotMachineRandomAnimation';
+import { GachaCapsuleRandomAnimation } from '../animations/GachaCapsuleRandomAnimation';
 
 export interface RandomAnimationRendererProps {
   style: RandomAnimationStyle;
@@ -52,6 +53,18 @@ export function RandomAnimationRenderer({
     case 'SLOT_MACHINE':
       return (
         <SlotMachineRandomAnimation
+          options={options}
+          winner={winner}
+          draw={draw}
+          isRunning={isRunning}
+          reduceMotion={reduceMotion}
+          onComplete={onComplete}
+        />
+      );
+
+    case 'GACHA_CAPSULE':
+      return (
+        <GachaCapsuleRandomAnimation
           options={options}
           winner={winner}
           draw={draw}

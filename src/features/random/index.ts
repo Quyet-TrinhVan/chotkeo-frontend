@@ -4,3 +4,4 @@ export * from './components/RandomAnimationRenderer';
 export * from './animations/CsgoRandomAnimation';
 export * from './animations/RocketRandomAnimation';
 export * from './animations/SlotMachineRandomAnimation';
+export * from './animations/GachaCapsuleRandomAnimation';

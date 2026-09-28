@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { Dices, Rocket, Columns3 } from 'lucide-react-native';
+import { Dices, Rocket, Columns3, Gift } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '../../../theme/tokens';
 import { RandomAnimationStyle } from '../types';
 
@@ -108,6 +108,35 @@ export function RandomStyleSwitcher({
               numberOfLines={1}
             >
               Slot Machine
+            </Text>
+          </Pressable>
+
+          {/* Gacha Option */}
+          <Pressable
+            onPress={() => !disabled && onSelectStyle('GACHA_CAPSULE')}
+            disabled={disabled}
+            style={({ pressed }) => [
+              styles.segmentBtn,
+              selectedStyle === 'GACHA_CAPSULE' && styles.segmentBtnActive,
+              pressed && !disabled && styles.segmentBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Chọn phong cách Gacha"
+            accessibilityState={{ selected: selectedStyle === 'GACHA_CAPSULE' }}
+          >
+            <Gift
+              size={15}
+              color={selectedStyle === 'GACHA_CAPSULE' ? colors.textInverse : colors.textSecondary}
+              style={styles.icon}
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                selectedStyle === 'GACHA_CAPSULE' && styles.segmentTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Gacha
             </Text>
           </Pressable>
         </View>
