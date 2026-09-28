@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,30 +7,33 @@ import {
   Pressable,
   Image,
   Animated,
-  Easing,
-  ActivityIndicator,
 } from 'react-native';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { AppHeader } from '../../src/components/AppHeader';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { StatusBadge } from '../../src/components/StatusBadge';
 import { randomDrawApi } from '../../src/api/randomDrawApi';
+import { placeApi } from '../../src/api/placeApi';
 import { ApiError } from '../../src/api/client';
-import { RandomDraw, PlaceSummary, RandomDrawCreate } from '../../src/types/api';
+import { RandomDraw, RandomDrawCreate } from '../../src/types/api';
 import { useRouter } from '../../src/navigation/router';
 import {
   Dices,
   RefreshCw,
   Navigation,
   Users,
-  Sparkles,
-  ArrowRight,
   Flame,
   AlertCircle,
   X,
 } from 'lucide-react-native';
+import {
+  RandomAnimationStyle,
+  DEFAULT_RANDOM_STYLE,
+  RandomStyleSwitcher,
+  RandomAnimationRenderer,
+} from '../../src/features/random';
 
 export type DrawUiState = 'IDLE' | 'LOADING' | 'EMPTY' | 'SUCCESS';
 
@@ -42,13 +45,21 @@ export default function RandomDrawScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentDraw, setCurrentDraw] = useState<RandomDraw | null>(null);
   const [showResultCard, setShowResultCard] = useState(false);
-  const [reelPlaces, setReelPlaces] = useState<PlaceSummary[]>([]);
+  const [animationStyle, setAnimationStyle] =
+    useState<RandomAnimationStyle>(DEFAULT_RANDOM_STYLE);
 
-  // Animation values for horizontal CSGO reel
-  const scrollX = useRef(new Animated.Value(0)).current;
+  // Fade animation for celebratory result card reveal
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // TanStack Query Mutation
+  // TanStack Query: Fetch candidate places pool for rich animations
+  const { data: candidateData } = useQuery({
+    queryKey: ['random-candidate-places'],
+    queryFn: () => placeApi.getPlaces({ pageSize: 15 }),
+    staleTime: 60000,
+  });
+  const candidateOptions = candidateData?.places || [];
+
+  // TanStack Query Mutation: Server-committed random draw
   const randomDrawMutation = useMutation({
     mutationFn: (payload?: RandomDrawCreate) => randomDrawApi.createDraw(payload),
   });
@@ -123,52 +134,25 @@ export default function RandomDrawScreen() {
     setErrorMessage(null);
     setUiState('LOADING');
     setShowResultCard(false);
-    scrollX.setValue(0);
     fadeAnim.setValue(0);
 
     try {
-      // Call server endpoint with try/catch. Server commits winner BEFORE animation!
+      // Call server endpoint. Server commits winner BEFORE animation!
       const draw = await randomDrawMutation.mutateAsync();
       setCurrentDraw(draw);
-
-      // Prepare reel candidate items
-      const places = draw.animationSpec.itemIds.map(() => draw.result);
-      setReelPlaces(places);
-
-      const ITEM_WIDTH = 130;
-      const targetOffset = draw.animationSpec.resultIndex * ITEM_WIDTH - 100;
-
-      if (reduceMotion) {
-        // Short reveal mode for accessibility
-        setTimeout(() => {
-          setUiState('SUCCESS');
-          setShowResultCard(true);
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 350,
-            useNativeDriver: true,
-          }).start();
-        }, draw.reduceMotionFallback.durationMs);
-      } else {
-        // Reel spring deceleration animation
-        Animated.timing(scrollX, {
-          toValue: targetOffset,
-          duration: draw.animationSpec.durationMs,
-          easing: Easing.bezier(0.12, 0.8, 0.25, 1),
-          useNativeDriver: true,
-        }).start(() => {
-          setUiState('SUCCESS');
-          setShowResultCard(true);
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }).start();
-        });
-      }
     } catch (error) {
       handleRandomDrawError(error);
     }
+  };
+
+  const handleAnimationComplete = () => {
+    setUiState('SUCCESS');
+    setShowResultCard(true);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handleReroll = () => {
@@ -201,6 +185,13 @@ export default function RandomDrawScreen() {
           </Text>
         </View>
 
+        {/* Animation Style Selector */}
+        <RandomStyleSwitcher
+          selectedStyle={animationStyle}
+          onSelectStyle={setAnimationStyle}
+          disabled={uiState === 'LOADING'}
+        />
+
         {/* Error Feedback Banner for Non-Empty Errors */}
         {errorMessage && uiState !== 'EMPTY' ? (
           <View style={styles.errorBanner}>
@@ -212,7 +203,7 @@ export default function RandomDrawScreen() {
           </View>
         ) : null}
 
-        {/* 4 UI States Rendering: EMPTY vs REEL (IDLE / LOADING / SUCCESS) */}
+        {/* UI States Rendering: EMPTY vs ACTIVE ANIMATION (CSGO / ROCKET) */}
         {uiState === 'EMPTY' ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconWrap}>
@@ -230,47 +221,15 @@ export default function RandomDrawScreen() {
             />
           </View>
         ) : (
-          <View style={styles.reelContainer}>
-            <View style={styles.reelIndicator} />
-
-            {uiState === 'LOADING' ? (
-              <View style={styles.reelPlaceholder}>
-                <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.xs }} />
-                <Text style={styles.reelLoadingText}>Đang tìm kèo...</Text>
-              </View>
-            ) : reelPlaces.length > 0 ? (
-              <Animated.View
-                style={[
-                  styles.reelTrack,
-                  {
-                    transform: [{ translateX: Animated.multiply(scrollX, -1) }],
-                  },
-                ]}
-              >
-                {reelPlaces.map((plc, idx) => (
-                  <View key={idx} style={styles.reelItem}>
-                    <Image
-                      source={{
-                        uri:
-                          plc.heroImageUrl ||
-                          'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&q=80',
-                      }}
-                      style={styles.reelImage}
-                    />
-                    <Text style={styles.reelItemName} numberOfLines={1}>
-                      {plc.name}
-                    </Text>
-                  </View>
-                ))}
-              </Animated.View>
-            ) : (
-              <View style={styles.reelPlaceholder}>
-                <Text style={styles.reelPlaceholderText}>
-                  Nhấn “Mở kèo ngay” để bắt đầu
-                </Text>
-              </View>
-            )}
-          </View>
+          <RandomAnimationRenderer
+            style={animationStyle}
+            options={candidateOptions}
+            winner={currentDraw?.result || null}
+            draw={currentDraw}
+            isRunning={uiState === 'LOADING'}
+            reduceMotion={reduceMotion}
+            onComplete={handleAnimationComplete}
+          />
         )}
 
         {/* Primary CTA button during IDLE or LOADING */}
@@ -369,7 +328,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: colors.border,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   diceIconWrap: {
     width: 64,
@@ -392,59 +351,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 19,
-  },
-  reelContainer: {
-    height: 120,
-    backgroundColor: '#1E1B18',
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    position: 'relative',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  reelIndicator: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: '50%',
-    marginLeft: -2,
-    width: 4,
-    backgroundColor: colors.primary,
-    zIndex: 20,
-    borderRadius: 2,
-  },
-  reelTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: '50%',
-  },
-  reelItem: {
-    width: 120,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  reelImage: {
-    width: 70,
-    height: 70,
-    borderRadius: radius.md,
-    backgroundColor: '#333',
-    marginBottom: 4,
-  },
-  reelItemName: {
-    color: colors.textInverse,
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  reelPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reelPlaceholderText: {
-    ...typography.captionMedium,
-    color: 'rgba(255, 255, 255, 0.6)',
   },
   drawCTA: {
     height: 52,
@@ -551,12 +457,6 @@ const styles = StyleSheet.create({
   emptyRetryBtn: {
     minWidth: 140,
     height: 44,
-  },
-  reelLoadingText: {
-    ...typography.captionMedium,
-    color: colors.textInverse,
-    fontSize: 13,
-    fontWeight: '600',
   },
   errorBanner: {
     flexDirection: 'row',
