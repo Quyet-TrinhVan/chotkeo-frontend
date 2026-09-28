@@ -12,9 +12,10 @@ import {
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
+import { AppLogo } from '../../src/components/AppLogo';
 import { useAuth } from '../../src/context/AuthContext';
 import { useRouter } from '../../src/navigation/router';
-import { Flame, Lock, User, AlertCircle } from 'lucide-react-native';
+import { Lock, User, AlertCircle } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -53,13 +54,9 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Brand & Logo */}
-        <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Flame size={38} color={colors.textInverse} />
-          </View>
-          <Text style={styles.appName}>Chốt Kèo</Text>
-          <Text style={styles.tagline}>Hôm nay đi đâu? Để Chốt Kèo lo!</Text>
+        {/* Logo Chốt Kèo */}
+        <View style={styles.loginLogoContainer}>
+          <AppLogo variant="login" size={128} />
         </View>
 
         {/* Card Form */}
@@ -147,43 +144,20 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
-  brandContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: radius.container,
-    backgroundColor: colors.primary,
+  loginLogoContainer: {
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  appName: {
-    ...typography.display,
-    fontSize: 32,
-    color: colors.primary,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  tagline: {
-    ...typography.bodyMedium,
-    color: colors.textSecondary,
-    marginTop: 4,
-    textAlign: 'center',
+    marginTop: spacing.md,
+    marginBottom: 24,
   },
   card: {
     backgroundColor: colors.surface,

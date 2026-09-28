@@ -29,7 +29,7 @@ const queryClient = new QueryClient({
 function AppNavigator() {
   const { pathname, params, push, replace, back } = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>('search');
+  const [activeTab, setActiveTab] = useState<TabKey>('index');
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 
@@ -126,17 +126,25 @@ function AppNavigator() {
   );
 }
 
+function NavigationWrapper() {
+  const { pathname } = useRouter();
+  const isAuth = pathname.startsWith('/(auth)');
+  return (
+    <View style={[styles.rootContainer, isAuth && { backgroundColor: '#FFFFFF' }]}>
+      <StatusBar barStyle="dark-content" />
+      <SafeAreaView style={[styles.safeArea, isAuth && { backgroundColor: '#FFFFFF' }]}>
+        <AppNavigator />
+      </SafeAreaView>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider>
         <AuthProvider>
-          <View style={styles.rootContainer}>
-            <StatusBar barStyle="dark-content" />
-            <SafeAreaView style={styles.safeArea}>
-              <AppNavigator />
-            </SafeAreaView>
-          </View>
+          <NavigationWrapper />
         </AuthProvider>
       </RouterProvider>
     </QueryClientProvider>

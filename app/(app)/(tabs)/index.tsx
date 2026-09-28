@@ -15,7 +15,8 @@ import { PlaceCard } from '../../../src/components/PlaceCard';
 import { useRouter } from '../../../src/navigation/router';
 import { placeApi } from '../../../src/api/placeApi';
 import { PlaceSummary } from '../../../src/types/api';
-import { Sparkles, Dices, Users, Compass, ChevronRight, Flame, AlertCircle } from 'lucide-react-native';
+import { AppLogo } from '../../../src/components/AppLogo';
+import { Sparkles, Dices, Users, Compass, ChevronRight, AlertCircle } from 'lucide-react-native';
 
 interface HomeScreenProps {
   onSelectPlace?: (placeId: string) => void;
@@ -105,8 +106,8 @@ export default function HomeScreen({ onSelectPlace }: HomeScreenProps) {
               Mood bạn chọn, kèo mình show.
             </Text>
           </View>
-          <View style={styles.brandIconWrap}>
-            <Flame size={24} color={colors.primary} />
+          <View style={styles.exploreLogoContainer}>
+            <AppLogo variant="explore" size={36} />
           </View>
         </View>
       </View>
@@ -477,15 +478,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 4,
   },
-  brandIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryLight,
+  exploreLogoContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
+    padding: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 2,
   },
   actionSection: {
     paddingHorizontal: 20,
