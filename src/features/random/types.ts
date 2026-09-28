@@ -1,6 +1,6 @@
 import { PlaceSummary, RandomDraw } from '../../types/api';
 
-export type RandomAnimationStyle = 'CSGO' | 'ROCKET';
+export type RandomAnimationStyle = 'CSGO' | 'ROCKET' | 'SLOT_MACHINE';
 
 export const DEFAULT_RANDOM_STYLE: RandomAnimationStyle = 'CSGO';
 

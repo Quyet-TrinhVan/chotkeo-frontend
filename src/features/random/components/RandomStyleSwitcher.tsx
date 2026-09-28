@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Dices, Rocket } from 'lucide-react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { Dices, Rocket, Columns3 } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '../../../theme/tokens';
 import { RandomAnimationStyle } from '../types';
 
@@ -18,63 +18,100 @@ export function RandomStyleSwitcher({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Phong cách quay</Text>
-      <View style={[styles.switcherTrack, disabled && styles.trackDisabled]}>
-        {/* CSGO Option */}
-        <Pressable
-          onPress={() => !disabled && onSelectStyle('CSGO')}
-          disabled={disabled}
-          style={({ pressed }) => [
-            styles.segmentBtn,
-            selectedStyle === 'CSGO' && styles.segmentBtnActive,
-            pressed && !disabled && styles.segmentBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Chọn phong cách CSGO"
-          accessibilityState={{ selected: selectedStyle === 'CSGO' }}
-        >
-          <Dices
-            size={16}
-            color={selectedStyle === 'CSGO' ? colors.textInverse : colors.textSecondary}
-            style={styles.icon}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              selectedStyle === 'CSGO' && styles.segmentTextActive,
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollTrack}
+      >
+        <View style={[styles.switcherTrack, disabled && styles.trackDisabled]}>
+          {/* CSGO Option */}
+          <Pressable
+            onPress={() => !disabled && onSelectStyle('CSGO')}
+            disabled={disabled}
+            style={({ pressed }) => [
+              styles.segmentBtn,
+              selectedStyle === 'CSGO' && styles.segmentBtnActive,
+              pressed && !disabled && styles.segmentBtnPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Chọn phong cách CSGO"
+            accessibilityState={{ selected: selectedStyle === 'CSGO' }}
           >
-            CSGO
-          </Text>
-        </Pressable>
+            <Dices
+              size={15}
+              color={selectedStyle === 'CSGO' ? colors.textInverse : colors.textSecondary}
+              style={styles.icon}
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                selectedStyle === 'CSGO' && styles.segmentTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              CSGO
+            </Text>
+          </Pressable>
 
-        {/* Rocket Option */}
-        <Pressable
-          onPress={() => !disabled && onSelectStyle('ROCKET')}
-          disabled={disabled}
-          style={({ pressed }) => [
-            styles.segmentBtn,
-            selectedStyle === 'ROCKET' && styles.segmentBtnActive,
-            pressed && !disabled && styles.segmentBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Chọn phong cách Rocket"
-          accessibilityState={{ selected: selectedStyle === 'ROCKET' }}
-        >
-          <Rocket
-            size={16}
-            color={selectedStyle === 'ROCKET' ? colors.textInverse : colors.textSecondary}
-            style={styles.icon}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              selectedStyle === 'ROCKET' && styles.segmentTextActive,
+          {/* Rocket Option */}
+          <Pressable
+            onPress={() => !disabled && onSelectStyle('ROCKET')}
+            disabled={disabled}
+            style={({ pressed }) => [
+              styles.segmentBtn,
+              selectedStyle === 'ROCKET' && styles.segmentBtnActive,
+              pressed && !disabled && styles.segmentBtnPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Chọn phong cách Rocket"
+            accessibilityState={{ selected: selectedStyle === 'ROCKET' }}
           >
-            Rocket
-          </Text>
-        </Pressable>
-      </View>
+            <Rocket
+              size={15}
+              color={selectedStyle === 'ROCKET' ? colors.textInverse : colors.textSecondary}
+              style={styles.icon}
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                selectedStyle === 'ROCKET' && styles.segmentTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Rocket
+            </Text>
+          </Pressable>
+
+          {/* Slot Machine Option */}
+          <Pressable
+            onPress={() => !disabled && onSelectStyle('SLOT_MACHINE')}
+            disabled={disabled}
+            style={({ pressed }) => [
+              styles.segmentBtn,
+              selectedStyle === 'SLOT_MACHINE' && styles.segmentBtnActive,
+              pressed && !disabled && styles.segmentBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Chọn phong cách Slot Machine"
+            accessibilityState={{ selected: selectedStyle === 'SLOT_MACHINE' }}
+          >
+            <Columns3
+              size={15}
+              color={selectedStyle === 'SLOT_MACHINE' ? colors.textInverse : colors.textSecondary}
+              style={styles.icon}
+            />
+            <Text
+              style={[
+                styles.segmentText,
+                selectedStyle === 'SLOT_MACHINE' && styles.segmentTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Slot Machine
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -90,13 +127,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     marginLeft: spacing.xs,
   },
+  scrollTrack: {
+    flexGrow: 1,
+  },
   switcherTrack: {
+    flex: 1,
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
     borderRadius: radius.pill,
     padding: 3,
     borderWidth: 1,
     borderColor: colors.border,
+    minWidth: '100%',
   },
   trackDisabled: {
     opacity: 0.55,
@@ -106,8 +148,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderRadius: radius.pill,
   },
   segmentBtnActive: {
@@ -122,11 +164,11 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   icon: {
-    marginRight: 6,
+    marginRight: 5,
   },
   segmentText: {
     ...typography.captionMedium,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
   },
