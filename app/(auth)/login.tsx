@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { colors, radius, spacing, typography } from '../../src/theme/tokens';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
@@ -54,9 +55,17 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Logo Chốt Kèo */}
-        <View style={styles.loginLogoContainer}>
-          <AppLogo variant="login" size={128} />
+        {/* Brand: Logo & Wordmark */}
+        <View style={styles.brandContainer}>
+          <AppLogo variant="login" size={118} />
+          <Image
+            source={require('../../assets/app-name.png')}
+            style={styles.appName}
+            resizeMode="contain"
+            accessible={true}
+            accessibilityRole="image"
+            accessibilityLabel="Tên thương hiệu Chốt Kèo"
+          />
         </View>
 
         {/* Card Form */}
@@ -152,12 +161,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  loginLogoContainer: {
+  brandContainer: {
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     marginBottom: 24,
+  },
+  appName: {
+    width: 200,
+    height: 66,
+    marginTop: 10,
+    resizeMode: 'contain',
   },
   card: {
     backgroundColor: colors.surface,
